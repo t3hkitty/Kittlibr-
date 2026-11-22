@@ -16,12 +16,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
@@ -77,6 +79,7 @@ class MainActivity : ComponentActivity() {
         
         // Mandatory App Check configuration before UI or Firebase operations
         configureAppCheck(this, intent)
+        handleIncomingIntent(intent)
 
         enableEdgeToEdge()
         setContent {
@@ -91,6 +94,39 @@ class MainActivity : ComponentActivity() {
                         currentAppTheme = currentAppTheme,
                         onThemeChange = { currentAppTheme = it }
                     )
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data != null) {
+            val uri = intent.data!!
+            val repo = LibraryRepository(this)
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val fileName = uri.lastPathSegment ?: "External File"
+                    repo.insertBook(
+                        com.example.data.local.BookEntity(
+                            title = fileName.substringBeforeLast("."),
+                            author = "External Reader",
+                            description = "Opened via external file intent: $uri",
+                            coverUrl = "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600",
+                            format = if (uri.toString().endsWith(".md", true)) "MD" else "EPUB",
+                            filePath = uri.toString(),
+                            tags = "ExternalIntent, ReaderOpen",
+                            hasCopy = true,
+                            externalUri = uri.toString()
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Failed to import external file intent", e)
                 }
             }
         }

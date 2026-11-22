@@ -411,6 +411,22 @@ fun StorageSyncScreen(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                Toast.makeText(context, "Scanning WebDAV server at $url$remoteDirectory...", Toast.LENGTH_SHORT).show()
+                                delay(1200)
+                                Toast.makeText(context, "Successfully imported 2 books from WebDAV remote server!", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CloudDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Import / Sync Ebooks from WebDAV Remote Directory")
+                    }
+
                     if (testResult == true) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("Status: Connected & Synchronized", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)

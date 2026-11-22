@@ -1,0 +1,6 @@
+{
+  "name": "Kittlibr",
+  "description": "Cross-platform reader, library manager, Calibre metadata cleanup, WebDAV sync, and AI taste discovery app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

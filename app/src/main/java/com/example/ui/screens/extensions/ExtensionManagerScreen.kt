@@ -1,6 +1,9 @@
 package com.example.ui.screens.extensions
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,7 +28,9 @@ data class ExtensionManifest(
     val description: String,
     val repoUrl: String,
     var isInstalled: Boolean,
-    var isEnabled: Boolean = true
+    var isEnabled: Boolean = true,
+    val isNew: Boolean = false,
+    val hasUpdate: Boolean = false
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +40,10 @@ fun ExtensionManagerScreen() {
 
     var extensionRepos by remember {
         mutableStateOf(
-            listOf("https://raw.githubusercontent.com/kittlibr/kittlibr-extensions/main/repo.json")
+            listOf(
+                "https://raw.githubusercontent.com/kttlibr/kttlibr-extensions/main/repo.json",
+                "https://raw.githubusercontent.com/kittlibr/kittlibr-extensions/main/repo.json"
+            )
         )
     }
 
@@ -44,31 +52,54 @@ fun ExtensionManagerScreen() {
             listOf(
                 ExtensionManifest(
                     id = "librget_lnreader_sources",
-                    name = "Librget: All LNReader Sources (NovelUpdates, RoyalRoad, ScribbleHub, WebNovel, FreeWebNovel, LightNovelPub)",
+                    name = "Librget: All LNReader Sources (NovelUpdates, RoyalRoad, ScribbleHub)",
                     category = "Librget",
-                    version = "2.5.0",
+                    version = "2.6.0",
                     description = "Comprehensive acquisition extension containing all major LNReader sources for web novels and light novels.",
-                    repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
+                    repoUrl = "https://github.com/kttlibr/kttlibr-extensions",
+                    isInstalled = true,
+                    isEnabled = true,
+                    hasUpdate = true
+                ),
+                ExtensionManifest(
+                    id = "librdiscover_goodreads",
+                    name = "Librdiscover: Goodreads & OpenLibrary Rec Lists",
+                    category = "Librdiscover",
+                    version = "1.6.0",
+                    description = "Discovery extension for Goodreads reading lists, OpenLibrary rec lists, and NYT bestsellers.",
+                    repoUrl = "https://github.com/kttlibr/kttlibr-extensions",
                     isInstalled = true,
                     isEnabled = true
                 ),
                 ExtensionManifest(
-                    id = "librdiscover_goodreads",
-                    name = "Librdiscover: Goodreads & Bestsellers Feed",
-                    category = "Librdiscover",
-                    version = "1.5.0",
-                    description = "Discovery extension for Goodreads reading lists, reviews, NYT bestsellers, and custom combination genre feeds.",
-                    repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
+                    id = "subscription_matcher_ext",
+                    name = "Subscribable Metadata & Online Matcher (New Feature Extension)",
+                    category = "Automation",
+                    version = "1.0.0",
+                    description = "New feature extension enabling metadata field subscriptions and real-time online new story alerts.",
+                    repoUrl = "https://github.com/kttlibr/kttlibr-extensions",
                     isInstalled = true,
-                    isEnabled = true
+                    isEnabled = true,
+                    isNew = true
+                ),
+                ExtensionManifest(
+                    id = "smart_shelves_ext",
+                    name = "Smart Shelves & Dynamic Rules Engine (New Feature Extension)",
+                    category = "Library",
+                    version = "1.0.0",
+                    description = "New feature extension for auto-updating dynamic library shelves with AND/OR logic and sensitive content filters.",
+                    repoUrl = "https://github.com/kttlibr/kittlibr-extensions",
+                    isInstalled = true,
+                    isEnabled = true,
+                    isNew = true
                 ),
                 ExtensionManifest(
                     id = "webview_cookier",
                     name = "WebView Cookier (Cloudflare & Auth)",
                     category = "Utility",
                     version = "1.0.1",
-                    description = "Shared cookie grabber utility requested by acquisition extensions to store session/Cloudflare cookies.",
-                    repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
+                    description = "Shared cookie grabber utility requested by acquisition extensions to store session cookies.",
+                    repoUrl = "https://github.com/kttlibr/kittlibr-extensions",
                     isInstalled = true,
                     isEnabled = true
                 ),
@@ -77,30 +108,21 @@ fun ExtensionManagerScreen() {
                     name = "LibrManage & Series Manager",
                     category = "LibrManage",
                     version = "1.4.0",
-                    description = "Library manager extension including built-in Series Manager for sorting multi-book series (5+ books), indices, and batch metadata cleanup.",
-                    repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
+                    description = "Library manager extension including built-in Series Manager for sorting multi-book series (5+ books).",
+                    repoUrl = "https://github.com/kttlibr/kittlibr-extensions",
                     isInstalled = true,
                     isEnabled = true
                 ),
                 ExtensionManifest(
                     id = "librsync",
-                    name = "LibrSync: WebDAV, Document Providers & Rclone Cloud",
+                    name = "LibrSync: WebDAV, Document Providers & Cloud Backup",
                     category = "LibrSync",
-                    version = "1.2.0",
-                    description = "Synchronizes library files and reading progress via WebDAV, Android Document Providers (Google Drive, Koofr), and cloud storage adapters.",
-                    repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
+                    version = "1.3.0",
+                    description = "Synchronizes library files, reading progress, and persistent app settings via WebDAV and cloud backups.",
+                    repoUrl = "https://github.com/kttlibr/kittlibr-extensions",
                     isInstalled = true,
-                    isEnabled = true
-                ),
-                ExtensionManifest(
-                    id = "libraudio",
-                    name = "LibrAudio: TTS & Audiobook Sync",
-                    category = "LibrAudio",
-                    version = "1.0.4",
-                    description = "High-fidelity text-to-speech engine and synchronized audiobook playback extension.",
-                    repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true,
-                    isEnabled = true
+                    isEnabled = true,
+                    hasUpdate = true
                 )
             )
         )
@@ -110,8 +132,27 @@ fun ExtensionManagerScreen() {
     var newRepoUrlInput by remember { mutableStateOf("") }
     var configuringExtension by remember { mutableStateOf<ExtensionManifest?>(null) }
 
-    var groupSeriesFivePlus by remember { mutableStateOf(true) }
-    var autoNumberSeriesIndices by remember { mutableStateOf(true) }
+    // Local extension zip/json import from file picker
+    val importExtensionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val fileName = it.lastPathSegment ?: "CustomExtension.json"
+            val newExt = ExtensionManifest(
+                id = "custom_ext_${System.currentTimeMillis()}",
+                name = fileName.substringBeforeLast("."),
+                category = "Custom",
+                version = "1.0.0",
+                description = "Imported custom extension package from local device storage.",
+                repoUrl = "Local Import",
+                isInstalled = true,
+                isEnabled = true,
+                isNew = true
+            )
+            availableExtensions = availableExtensions + newExt
+            Toast.makeText(context, "Successfully imported and installed extension: ${newExt.name}", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -149,7 +190,7 @@ fun ExtensionManagerScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -158,20 +199,27 @@ fun ExtensionManagerScreen() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Kittlibr Extension Repositories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text("Kittlibr & Kttlibr Repositories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
-                        Button(onClick = { showAddRepoDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Repo")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { importExtensionLauncher.launch(arrayOf("application/json", "application/zip", "*/*")) }) {
+                                Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Import File")
+                            }
+                            Button(onClick = { showAddRepoDialog = true }) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Repo")
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Connected Repos: kittlibr-extensions\n" + extensionRepos.joinToString("\n") { "• $it" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Connected Repositories:\n" + extensionRepos.joinToString("\n") { "• $it" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
 
-            Text("Installed & Available Extensions (Manage Enable / Disable)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text("Installed & Available Extensions (New! & Updates)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -197,6 +245,18 @@ fun ExtensionManagerScreen() {
                                             shape = MaterialTheme.shapes.small
                                         ) {
                                             Text(ext.category, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                        if (ext.isNew) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.extraSmall) {
+                                                Text("NEW", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                            }
+                                        }
+                                        if (ext.hasUpdate) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.extraSmall) {
+                                                Text("UPDATE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.onErrorContainer)
+                                            }
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
@@ -303,31 +363,7 @@ fun ExtensionManagerScreen() {
                     Text("Extension ID: ${configuringExtension!!.id}", style = MaterialTheme.typography.bodySmall)
                     Text("Version: ${configuringExtension!!.version}", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    if (configuringExtension!!.id == "librmanage") {
-                        Text("Series Manager Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Group Series with 5+ Books", style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = groupSeriesFivePlus, onCheckedChange = { groupSeriesFivePlus = it })
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Auto-number Series Indices (#1, #2)", style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = autoNumberSeriesIndices, onCheckedChange = { autoNumberSeriesIndices = it })
-                        }
-                    } else if (configuringExtension!!.id == "librsync") {
-                        Text("Storage & Cloud Sync Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("Configured via WebDAV credentials or Android Document Provider.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        Text("Extension parameters and scraper hooks are active.", style = MaterialTheme.typography.bodyMedium)
-                    }
+                    Text("Extension parameters, scrapers, and feature hooks are active.", style = MaterialTheme.typography.bodyMedium)
                 }
             },
             confirmButton = {

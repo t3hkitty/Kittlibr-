@@ -76,7 +76,7 @@ class LibraryRepository(context: Context) {
                     progressPercent = 0.09f,
                     rating = 4.9f,
                     status = "READING",
-                    tags = "Fantasy, Action, Apocalyptic, WebNovel",
+                    tags = "Fantasy, Action, Apocalyptic, WebNovel, demo",
                     series = "ORV Series",
                     isFavorite = true
                 ),
@@ -92,7 +92,7 @@ class LibraryRepository(context: Context) {
                     progressPercent = 0.14f,
                     rating = 4.8f,
                     status = "READING",
-                    tags = "ProgressionFantasy, Grimdark, Magic, Monsters",
+                    tags = "ProgressionFantasy, Grimdark, Magic, Monsters, demo",
                     series = "Shadow Slave",
                     isFavorite = true
                 ),
@@ -108,12 +108,12 @@ class LibraryRepository(context: Context) {
                     progressPercent = 0f,
                     rating = 4.7f,
                     status = "PLAN_TO_READ",
-                    tags = "SciFi, Classics, SpaceOpera",
+                    tags = "SciFi, Classics, SpaceOpera, demo",
                     series = "Foundation Universe",
                     isFavorite = false
                 ),
                 BookEntity(
-                    title = "Calibre Metadata & Library Management Guide",
+                    title = "Metadata & Library Management Guide",
                     author = "Kittlibr Team",
                     description = "Comprehensive reference manual for organizing your ebook library, cleaning metadata, and WebDAV sync.",
                     coverUrl = "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600",
@@ -124,8 +124,40 @@ class LibraryRepository(context: Context) {
                     progressPercent = 0.25f,
                     rating = 4.5f,
                     status = "READING",
-                    tags = "Tutorial, Productivity, Calibre",
+                    tags = "Tutorial, Productivity, demo",
                     series = "Manuals",
+                    isFavorite = false
+                ),
+                BookEntity(
+                    title = "Pride and Prejudice (Project Gutenberg Free Source)",
+                    author = "Jane Austen",
+                    description = "Classic romance novel acquired from Project Gutenberg free public domain library archive.",
+                    coverUrl = "https://images.unsplash.com/photo-1474932430478-367dbb6832c1?w=600",
+                    format = "EPUB",
+                    filePath = "gutenberg_pride.epub",
+                    currentPage = 0,
+                    totalPages = 320,
+                    progressPercent = 0f,
+                    rating = 4.8f,
+                    status = "PLAN_TO_READ",
+                    tags = "Classics, Romance, Gutenberg, FreeSource",
+                    series = "Gutenberg Library",
+                    isFavorite = false
+                ),
+                BookEntity(
+                    title = "Alice's Adventures in Wonderland (Internet Archive Source)",
+                    author = "Lewis Carroll",
+                    description = "The whimsical tale of Alice falling down the rabbit hole, sourced directly from Internet Archive Open Library.",
+                    coverUrl = "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=600",
+                    format = "EPUB",
+                    filePath = "internet_archive_alice.epub",
+                    currentPage = 0,
+                    totalPages = 200,
+                    progressPercent = 0f,
+                    rating = 4.7f,
+                    status = "PLAN_TO_READ",
+                    tags = "Fantasy, Classics, InternetArchive, FreeSource",
+                    series = "Open Library",
                     isFavorite = false
                 )
             )

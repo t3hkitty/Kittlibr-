@@ -33,6 +33,14 @@ import coil.compose.AsyncImage
 import com.example.data.local.BookEntity
 import com.example.ui.components.GeneratedCover
 
+enum class LibrarySortOption(val label: String) {
+    TITLE("Title (A-Z)"),
+    AUTHOR("Author (A-Z)"),
+    RECENTLY_ADDED("Recently Added"),
+    RECENTLY_OPENED("Recently Opened"),
+    RATING("Rating (High-Low)")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -58,6 +66,8 @@ fun LibraryScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var showDynamicLibraryDialog by remember { mutableStateOf(false) }
+    var currentSortOption by remember { mutableStateOf(LibrarySortOption.RECENTLY_ADDED) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     // Custom dynamic rule builder inputs
     var newRuleName by remember { mutableStateOf("") }
@@ -136,7 +146,15 @@ fun LibraryScreen(
             match
         }
         matchesSearch && matchesRule
-    }
+    }.sortedWith(
+        when (currentSortOption) {
+            LibrarySortOption.TITLE -> compareBy { it.title.lowercase() }
+            LibrarySortOption.AUTHOR -> compareBy { it.author.lowercase() }
+            LibrarySortOption.RECENTLY_ADDED -> compareByDescending { it.addedDate }
+            LibrarySortOption.RECENTLY_OPENED -> compareByDescending { it.lastReadDate }
+            LibrarySortOption.RATING -> compareByDescending { it.rating }
+        }
+    )
 
     Scaffold(
         topBar = {
@@ -157,6 +175,27 @@ fun LibraryScreen(
                             Icon(Icons.Default.Close, contentDescription = "Clear Selection")
                         }
                     } else {
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(Icons.Default.Sort, contentDescription = "Sort Library")
+                            }
+                            DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                LibrarySortOption.values().forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option.label) },
+                                        onClick = {
+                                            currentSortOption = option
+                                            showSortMenu = false
+                                        },
+                                        leadingIcon = {
+                                            if (currentSortOption == option) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                         IconButton(onClick = { showDynamicLibraryDialog = true }) {
                             Icon(Icons.Default.FilterList, contentDescription = "Dynamic Library Picker")
                         }
@@ -789,8 +828,11 @@ fun MetadataSectionContent(
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     tagsList.forEach { tag ->
-                        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.extraSmall) {
-                            Text("#$tag", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+                        Surface(
+                            color = if (tag.equals("demo", ignoreCase = true)) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = MaterialTheme.shapes.extraSmall
+                        ) {
+                            Text(if (tag.equals("demo", ignoreCase = true)) "🏷️ (New! Demo)" else "#$tag", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
                         }
                     }
                 }

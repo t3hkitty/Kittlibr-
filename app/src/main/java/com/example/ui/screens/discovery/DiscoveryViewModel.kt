@@ -64,4 +64,22 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             _isGenreLoading.value = false
         }
     }
+
+    fun addBookFromDiscovery(title: String, author: String, sourceList: String) {
+        viewModelScope.launch {
+            libraryRepository.insertBook(
+                com.example.data.local.BookEntity(
+                    title = title,
+                    author = author,
+                    description = "Imported from Open Library Rec List: $sourceList",
+                    coverUrl = "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600",
+                    format = "EPUB",
+                    filePath = "open_library_${System.currentTimeMillis()}",
+                    tags = "OpenLibrary, RecList, FreeSource",
+                    series = sourceList,
+                    status = "PLAN_TO_READ"
+                )
+            )
+        }
+    }
 }

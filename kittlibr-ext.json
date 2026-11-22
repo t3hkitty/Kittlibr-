@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "extensions": [
+    {
+      "identifier": "org.kittlibr.librmanage",
+      "slot": "librmanage",
+      "displayName": "librmanage (Calibre Headless & AnyMD Sharded Catalog)",
+      "version": "1.0.0",
+      "author": "Kittlibr Team",
+      "license": "GPL-3.0",
+      "entrypoint": "http://127.0.0.1:5820",
+      "permissions": ["storage:read", "storage:write", "network:loopback"]
+    },
+    {
+      "identifier": "org.kittlibr.librtrans",
+      "slot": "librtrans",
+      "displayName": "librtrans + nuance-brick Multi-Pass Translation",
+      "version": "1.0.0",
+      "author": "Kittlibr Team",
+      "license": "MIT",
+      "entrypoint": "src/extensions/librtrans/librtrans_pipeline.ts",
+      "permissions": ["storage:read", "storage:write"]
+    },
+    {
+      "identifier": "org.kittlibr.librget",
+      "slot": "librget",
+      "displayName": "librget (OpenlibExtended Acquisition Bridge)",
+      "version": "1.0.0",
+      "author": "Kittlibr Team",
+      "license": "MIT",
+      "entrypoint": "src/extensions/librget/librget_plugin.py",
+      "permissions": ["storage:write", "network:loopback"]
+    },
+    {
+      "identifier": "org.kittlibr.librscrape",
+      "slot": "librscrape",
+      "displayName": "librscrape (Web serials & EPUB 3 Ingestion)",
+      "version": "1.0.0",
+      "author": "Kittlibr Team",
+      "license": "MIT",
+      "entrypoint": "src/extensions/librscrape/librscrape_plugin.py",
+      "permissions": ["storage:write", "network:loopback"]
+    },
+    {
+      "identifier": "org.kittlibr.librsync",
+      "slot": "librsync",
+      "displayName": "librsync (Non-FUSE Rclone Daemon Client)",
+      "version": "1.0.0",
+      "author": "Kittlibr Team",
+      "license": "MIT",
+      "entrypoint": "http://127.0.0.1:5572",
+      "permissions": ["rclone:rpc", "storage:read", "storage:write"]
+    }
+  ]
+}

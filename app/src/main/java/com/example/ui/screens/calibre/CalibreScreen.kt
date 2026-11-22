@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.example.data.local.BookEntity
 import com.example.data.repository.AiRepository
 import com.example.ui.screens.library.LibraryViewModel
+import com.example.ui.screens.library.DynamicLibraryRule
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,6 +27,7 @@ fun CalibreScreen(viewModel: LibraryViewModel) {
     val context = LocalContext.current
     val books by viewModel.books.collectAsState()
     val customShelves by viewModel.customShelves.collectAsState()
+    val smartShelves by viewModel.smartShelves.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val aiRepository = remember { AiRepository() }
 
@@ -47,6 +49,16 @@ fun CalibreScreen(viewModel: LibraryViewModel) {
     var selectedShelf by remember { mutableStateOf("Masterpieces") }
     var showCreateShelfDialog by remember { mutableStateOf(false) }
     var newShelfNameInput by remember { mutableStateOf("") }
+
+    // Smart Shelves Builder States
+    var showCreateSmartShelfDialog by remember { mutableStateOf(false) }
+    var smartRuleName by remember { mutableStateOf("") }
+    var smartRuleAuthor by remember { mutableStateOf("") }
+    var smartUseOrAuthor by remember { mutableStateOf(false) }
+    var smartRuleTags by remember { mutableStateOf("") }
+    var smartUseOrTags by remember { mutableStateOf(false) }
+    var smartRuleFileType by remember { mutableStateOf("") }
+    var smartSensitivePass by remember { mutableStateOf<Boolean?>(null) }
 
     Scaffold(
         topBar = {
@@ -124,6 +136,68 @@ fun CalibreScreen(viewModel: LibraryViewModel) {
                                 onClick = { selectedShelf = shelf },
                                 label = { Text(shelf, style = MaterialTheme.typography.labelSmall) }
                             )
+                        }
+                    }
+                }
+            }
+
+            // Smart Shelves Hub Card (Auto-updating dynamic filter shelves)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Smart Shelves (Auto-Updating)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
+                        OutlinedButton(onClick = { showCreateSmartShelfDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("New Smart Shelf")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Smart Shelves automatically update as new books matching your dynamic filter criteria are added to the library.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        smartShelves.forEach { rule ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.setDynamicLibrary(rule)
+                                        Toast.makeText(context, "Applied Smart Shelf: ${rule.name}", Toast.LENGTH_SHORT).show()
+                                    },
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = MaterialTheme.shapes.small
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(rule.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        val criteriaText = buildString {
+                                            if (rule.authorFilter.isNotBlank()) append("Author: ${rule.authorFilter} ")
+                                            if (rule.tagQuery.isNotBlank()) append("Tags: ${rule.tagQuery} ")
+                                            if (rule.fileType.isNotBlank()) append("Format: ${rule.fileType} ")
+                                            if (rule.minSeriesCount > 0) append("Min Series: ${rule.minSeriesCount} ")
+                                            if (rule.missingMetadataOnly) append("Missing Metadata ")
+                                        }.ifBlank { "All matching items" }
+                                        Text(criteriaText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1)
+                                    }
+                                    Icon(Icons.Default.ChevronRight, contentDescription = null)
+                                }
+                            }
                         }
                     }
                 }
@@ -313,6 +387,71 @@ fun CalibreScreen(viewModel: LibraryViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showCreateShelfDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Create New Smart Shelf Dialog
+    if (showCreateSmartShelfDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateSmartShelfDialog = false },
+            title = { Text("Create Smart Shelf (Auto-Updating Rule)") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().height(400.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Smart Shelves automatically filter books matching criteria and update live as new books are added.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    OutlinedTextField(value = smartRuleName, onValueChange = { smartRuleName = it }, label = { Text("Smart Shelf Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = smartRuleAuthor, onValueChange = { smartRuleAuthor = it }, label = { Text("Author(s)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = smartUseOrAuthor, onCheckedChange = { smartUseOrAuthor = it })
+                        Text("Use OR logic for authors", style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedTextField(value = smartRuleTags, onValueChange = { smartRuleTags = it }, label = { Text("Tags / Genres") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = smartUseOrTags, onCheckedChange = { smartUseOrTags = it })
+                        Text("Use OR logic for tags", style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedTextField(value = smartRuleFileType, onValueChange = { smartRuleFileType = it }, label = { Text("File Format (e.g. EPUB, PDF)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    
+                    Text("Sensitive Content / Tropes Filter:", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = smartSensitivePass == true, onClick = { smartSensitivePass = if (smartSensitivePass == true) null else true }, label = { Text("True (Has Warning)") })
+                        FilterChip(selected = smartSensitivePass == false, onClick = { smartSensitivePass = if (smartSensitivePass == false) null else false }, label = { Text("False (No Warning)") })
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (smartRuleName.isNotBlank()) {
+                            val rule = DynamicLibraryRule(
+                                name = smartRuleName,
+                                authorFilter = smartRuleAuthor,
+                                useOrForAuthor = smartUseOrAuthor,
+                                tagQuery = smartRuleTags,
+                                useOrLogicForTags = smartUseOrTags,
+                                fileType = smartRuleFileType,
+                                sensitiveContentPass = smartSensitivePass
+                            )
+                            viewModel.saveSmartShelf(rule)
+                            viewModel.setDynamicLibrary(rule)
+                            Toast.makeText(context, "Smart Shelf '$smartRuleName' created and applied!", Toast.LENGTH_SHORT).show()
+                            smartRuleName = ""
+                            smartRuleAuthor = ""
+                            smartRuleTags = ""
+                            smartRuleFileType = ""
+                            smartSensitivePass = null
+                            showCreateSmartShelfDialog = false
+                        }
+                    }
+                ) {
+                    Text("Create Smart Shelf")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateSmartShelfDialog = false }) { Text("Cancel") }
             }
         )
     }

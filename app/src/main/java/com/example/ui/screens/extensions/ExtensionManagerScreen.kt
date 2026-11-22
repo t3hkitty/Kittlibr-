@@ -24,7 +24,8 @@ data class ExtensionManifest(
     val version: String,
     val description: String,
     val repoUrl: String,
-    var isInstalled: Boolean
+    var isInstalled: Boolean,
+    var isEnabled: Boolean = true
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,7 +49,8 @@ fun ExtensionManagerScreen() {
                     version = "2.5.0",
                     description = "Comprehensive acquisition extension containing all major LNReader sources for web novels and light novels.",
                     repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true
+                    isInstalled = true,
+                    isEnabled = true
                 ),
                 ExtensionManifest(
                     id = "librdiscover_goodreads",
@@ -57,7 +59,8 @@ fun ExtensionManagerScreen() {
                     version = "1.5.0",
                     description = "Discovery extension for Goodreads reading lists, reviews, NYT bestsellers, and custom combination genre feeds.",
                     repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true
+                    isInstalled = true,
+                    isEnabled = true
                 ),
                 ExtensionManifest(
                     id = "webview_cookier",
@@ -66,7 +69,8 @@ fun ExtensionManagerScreen() {
                     version = "1.0.1",
                     description = "Shared cookie grabber utility requested by acquisition extensions to store session/Cloudflare cookies.",
                     repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true
+                    isInstalled = true,
+                    isEnabled = true
                 ),
                 ExtensionManifest(
                     id = "librmanage",
@@ -75,7 +79,8 @@ fun ExtensionManagerScreen() {
                     version = "1.4.0",
                     description = "Library manager extension including built-in Series Manager for sorting multi-book series (5+ books), indices, and batch metadata cleanup.",
                     repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true
+                    isInstalled = true,
+                    isEnabled = true
                 ),
                 ExtensionManifest(
                     id = "librsync",
@@ -84,7 +89,8 @@ fun ExtensionManagerScreen() {
                     version = "1.2.0",
                     description = "Synchronizes library files and reading progress via WebDAV, Android Document Providers (Google Drive, Koofr), and cloud storage adapters.",
                     repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true
+                    isInstalled = true,
+                    isEnabled = true
                 ),
                 ExtensionManifest(
                     id = "libraudio",
@@ -93,7 +99,8 @@ fun ExtensionManagerScreen() {
                     version = "1.0.4",
                     description = "High-fidelity text-to-speech engine and synchronized audiobook playback extension.",
                     repoUrl = "https://github.com/kittlibr/kittlibr-extensions",
-                    isInstalled = true
+                    isInstalled = true,
+                    isEnabled = true
                 )
             )
         )
@@ -164,7 +171,7 @@ fun ExtensionManagerScreen() {
                 }
             }
 
-            Text("Installed & Available Extensions", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text("Installed & Available Extensions (Manage Enable / Disable)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -199,28 +206,43 @@ fun ExtensionManagerScreen() {
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                OutlinedButton(
-                                    onClick = { configuringExtension = ext },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Configure")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Switch(
+                                        checked = ext.isEnabled,
+                                        onCheckedChange = { enabled ->
+                                            ext.isEnabled = enabled
+                                            availableExtensions = availableExtensions.toList()
+                                            Toast.makeText(context, "${ext.name} is now ${if (enabled) "Enabled" else "Disabled"}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (ext.isEnabled) "Enabled" else "Disabled", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 }
-                                Button(
-                                    onClick = {
-                                        ext.isInstalled = !ext.isInstalled
-                                        availableExtensions = availableExtensions.toList()
-                                        Toast.makeText(context, if (ext.isInstalled) "Successfully installed ${ext.name}" else "Uninstalled ${ext.name}", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = if (ext.isInstalled) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant) else ButtonDefaults.buttonColors()
-                                ) {
-                                    Text(if (ext.isInstalled) "Installed" else "Install")
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = { configuringExtension = ext }
+                                    ) {
+                                        Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Configure")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            ext.isInstalled = !ext.isInstalled
+                                            availableExtensions = availableExtensions.toList()
+                                            Toast.makeText(context, if (ext.isInstalled) "Successfully installed ${ext.name}" else "Uninstalled ${ext.name}", Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = if (ext.isInstalled) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant) else ButtonDefaults.buttonColors()
+                                    ) {
+                                        Text(if (ext.isInstalled) "Installed" else "Install")
+                                    }
                                 }
                             }
                         }

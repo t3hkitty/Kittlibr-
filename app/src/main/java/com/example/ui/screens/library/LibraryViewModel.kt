@@ -59,6 +59,16 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _savedDynamicRules = MutableStateFlow<List<DynamicLibraryRule>>(emptyList())
     val savedDynamicRules: StateFlow<List<DynamicLibraryRule>> = _savedDynamicRules.asStateFlow()
 
+    // Smart Shelves state (dynamic filter configurations that automatically update as new books match)
+    private val _smartShelves = MutableStateFlow<List<DynamicLibraryRule>>(
+        listOf(
+            DynamicLibraryRule("Smart Shelf: Missing Metadata", missingMetadataOnly = true),
+            DynamicLibraryRule("Smart Shelf: Long Series (5+)", minSeriesCount = 5),
+            DynamicLibraryRule("Smart Shelf: Web Novels (EPUB)", fileType = "EPUB")
+        )
+    )
+    val smartShelves: StateFlow<List<DynamicLibraryRule>> = _smartShelves.asStateFlow()
+
     // Long press action preference: "auto_open" or "librmanage_edit"
     private val _longPressAction = MutableStateFlow("auto_open")
     val longPressAction: StateFlow<String> = _longPressAction.asStateFlow()
@@ -136,6 +146,18 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         if (!_savedDynamicRules.value.any { it.name.equals(rule.name, ignoreCase = true) }) {
             _savedDynamicRules.value = _savedDynamicRules.value + rule
         }
+    }
+
+    fun saveSmartShelf(rule: DynamicLibraryRule) {
+        val shelfTitle = if (rule.name.startsWith("Smart Shelf:")) rule.name else "Smart Shelf: ${rule.name}"
+        val smartRule = rule.copy(name = shelfTitle)
+        if (!_smartShelves.value.any { it.name.equals(smartRule.name, ignoreCase = true) }) {
+            _smartShelves.value = _smartShelves.value + smartRule
+        }
+        if (!_customShelves.value.contains(smartRule.name)) {
+            _customShelves.value = _customShelves.value + smartRule.name
+        }
+        saveDynamicRule(smartRule)
     }
 
     fun setLongPressAction(action: String) {

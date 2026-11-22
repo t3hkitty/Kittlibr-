@@ -43,6 +43,7 @@ fun LibraryScreen(
     val context = LocalContext.current
     val books by viewModel.books.collectAsState()
     val customShelves by viewModel.customShelves.collectAsState()
+    val smartShelves by viewModel.smartShelves.collectAsState()
     val savedDynamicRules by viewModel.savedDynamicRules.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val activeDynamicLibrary by viewModel.activeDynamicLibrary.collectAsState()
@@ -674,6 +675,18 @@ fun LibraryScreen(
                             Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Saved: ${rule.name}")
+                        }
+                    }
+
+                    Text("Smart Shelves (Auto-Updating):", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    smartShelves.forEach { rule ->
+                        OutlinedButton(onClick = {
+                            viewModel.setDynamicLibrary(rule)
+                            showDynamicLibraryDialog = false
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(rule.name)
                         }
                     }
 

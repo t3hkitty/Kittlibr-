@@ -1,6 +1,7 @@
 package com.example.ui.screens.acquisition
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -238,6 +239,17 @@ fun AcquisitionScreen(
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation()
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    Toast.makeText(context, "Anna's Archive API Key saved successfully!", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Save Anna's Archive Key")
+                            }
                         }
                     }
                 }

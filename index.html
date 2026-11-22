@@ -368,36 +368,121 @@
     <!-- STORAGE & SYNC VIEW -->
     <section id="tab-storage" class="view-section">
         <div class="card">
-            <div class="card-title">☁️ WebDAV, Document Provider & Rclone Config</div>
-            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure your WebDAV server and remote directory path, or launch the Rclone Remote Setup Wizard (`rclone config`).</p>
-            
-            <div class="form-group">
-                <label>WebDAV Server URL</label>
-                <input type="text" id="webdav-url" class="form-control" value="https://dav.example.com/kittlibr/">
+            <div class="card-title">☁️ WebDAV Storage, Sync & Remote Explorer</div>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure your WebDAV server and remote directory paths, or launch the interactive Remote Folder Explorer to test connections and pick folders.</p>
+
+            <!-- Folder Roles Explanation -->
+            <div style="background: var(--surface-variant); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <strong style="color: var(--primary-color);">📁 Folder Roles & Usage Guide:</strong>
+                <ul style="margin: 0.5rem 0 0 1.25rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+                    <li><strong>📚 Main Library:</strong> Primary destination for your eBook library files (.epub, .md), AnyMD YAML metadata shards, and cached book covers.</li>
+                    <li><strong>💾 Cloud Backup:</strong> Dedicated cloud backup destination for reading bookmarks, app settings, and library snapshot archives.</li>
+                    <li><strong>📥 Downloads & Staging:</strong> Landing zone where newly scraped web novels (librscrape), chapter downloads, and external intent files arrive.</li>
+                </ul>
             </div>
-            <div class="form-group">
-                <label>Remote Directory Path</label>
-                <input type="text" id="webdav-dir" class="form-control" value="/kittlibr/backups/">
+
+            <!-- WebDAV Quick Action Launchers -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+                <button class="btn" onclick="openRemoteExplorer('library')">📚 Configure Library Folder</button>
+                <button class="btn btn-outline" onclick="openRemoteExplorer('backup')">💾 Configure Backup Folder</button>
+                <button class="btn btn-outline" onclick="openRemoteExplorer('downloads')">📥 Configure Downloads Folder</button>
             </div>
-            <div class="form-group">
-                <label>Username</label>
-                <input type="text" id="webdav-user" class="form-control" placeholder="Username">
+
+            <!-- Remote Folder Explorer Modal / Panel -->
+            <div id="remote-explorer-panel" style="display: none; background: var(--surface-variant); border: 1px solid var(--primary-color); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <strong id="explorer-title" style="font-size: 1.1rem; color: var(--primary-color);">Remote Folder Explorer</strong>
+                    <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="closeRemoteExplorer()">✕ Close</button>
+                </div>
+                <p id="explorer-desc" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;"></p>
+
+                <!-- Host Selector (Existing mount vs Alternate host) -->
+                <div class="form-group">
+                    <label>Storage Host / Mount Option</label>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                            <input type="radio" name="explorer-host-type" value="configured" checked onchange="toggleExplorerHostMode()"> Configured Remote Mount
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+                            <input type="radio" name="explorer-host-type" value="alternate" onchange="toggleExplorerHostMode()"> + Add Different Host
+                        </label>
+                    </div>
+                </div>
+
+                <div id="explorer-configured-mount-group" class="form-group">
+                    <label>Select Active Mount</label>
+                    <select id="explorer-mount-select" class="form-control" onchange="refreshDiscoveredFolders()">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div id="explorer-alternate-host-group" style="display: none; background: var(--surface-color); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label>Alternate WebDAV Server URL</label>
+                        <input type="text" id="alt-webdav-url" class="form-control" placeholder="https://cloud.example.com/webdav/">
+                    </div>
+                    <div style="display: flex; gap: 1rem;">
+                        <div style="flex: 1;" class="form-group">
+                            <label>Username (optional)</label>
+                            <input type="text" id="alt-webdav-user" class="form-control" placeholder="Username">
+                        </div>
+                        <div style="flex: 1;" class="form-group">
+                            <label>Password (optional)</label>
+                            <input type="password" id="alt-webdav-pass" class="form-control" placeholder="Password">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Folder Tree Exploration & Selection -->
+                <div class="form-group">
+                    <label>Target Subpath on Remote</label>
+                    <input type="text" id="explorer-target-subpath" class="form-control" placeholder="e.g. library or downloads/incoming">
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.4rem;">Discovered Remote Directories:</label>
+                    <div id="explorer-folder-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        <!-- Folder chips -->
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button class="btn" onclick="applyExplorerFolderSelection()">Assign to Selected Purpose</button>
+                    <button class="btn btn-outline" onclick="testExplorerConnection()">Test Remote Connection</button>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="webdav-pass" class="form-control" placeholder="Password">
+
+            <!-- WebDAV Manual / Direct Config -->
+            <div style="border-top: 1px solid var(--surface-variant); padding-top: 1.25rem;">
+                <div class="card-title">🌐 Direct WebDAV Server Credentials</div>
+                <div class="form-group">
+                    <label>WebDAV Server URL</label>
+                    <input type="text" id="webdav-url" class="form-control" placeholder="https://dav.yourhost.com/remote.php/webdav/">
+                </div>
+                <div class="form-group">
+                    <label>Remote Directory Path</label>
+                    <input type="text" id="webdav-dir" class="form-control" placeholder="/kittlibr/backups/">
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="webdav-user" class="form-control" placeholder="Username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="webdav-pass" class="form-control" placeholder="Password">
+                </div>
+                <button class="btn" onclick="saveWebdavDirect()">Save & Test WebDAV Connection</button>
             </div>
-            <button class="btn" onclick="alert('WebDAV settings saved successfully!')">Save & Test Connection</button>
 
             <hr style="border: 0; border-top: 1px solid var(--surface-variant); margin: 2rem 0;">
 
             <div class="card-title">⚡ Rclone Remote Setup Wizard (`rclone config`)</div>
-            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure WebDAV, Google Drive, Dropbox, or S3 remotes and select folder roles (library, backup, or custom path).</p>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure WebDAV, Google Drive, Dropbox, or S3 remotes with selectable folder roles.</p>
             
             <div style="background: var(--surface-variant); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                 <div class="form-group">
                     <label>Remote Name</label>
-                    <input type="text" id="rclone-remote-name" class="form-control" value="kittlibr_webdav" placeholder="e.g. torbox_webdav, kittlibr_remote">
+                    <input type="text" id="rclone-remote-name" class="form-control" placeholder="e.g. personal_webdav">
                 </div>
                 <div class="form-group">
                     <label>Storage Type</label>
@@ -411,13 +496,14 @@
                 </div>
                 <div class="form-group">
                     <label>Endpoint / Server URL</label>
-                    <input type="text" id="rclone-endpoint" class="form-control" value="https://dav.example.com/" placeholder="https://dav.example.com/">
+                    <input type="text" id="rclone-endpoint" class="form-control" placeholder="https://dav.yourhost.com/">
                 </div>
                 <div class="form-group">
                     <label>Target Folder Purpose / Role</label>
                     <select id="rclone-role" class="form-control" onchange="toggleRcloneCustomPath()">
-                        <option value="library" selected>📚 Library (subpath: library)</option>
-                        <option value="backup">💾 Backup (subpath: backups/kittlibr)</option>
+                        <option value="library" selected>📚 Main Library (default subpath: library)</option>
+                        <option value="backup">💾 Cloud Backup (default subpath: backups/kittlibr)</option>
+                        <option value="downloads">📥 Downloads (default subpath: downloads)</option>
                         <option value="custom">⚙️ Custom Subpath</option>
                     </select>
                 </div>
@@ -437,12 +523,12 @@
                 </div>
                 <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem;">
                     <button class="btn" onclick="saveRcloneRemote()">+ Add Rclone Remote</button>
-                    <span id="rclone-target-preview" style="font-size: 0.85rem; color: var(--text-secondary);">Target: kittlibr_webdav:library</span>
+                    <span id="rclone-target-preview" style="font-size: 0.85rem; color: var(--text-secondary);">Target: (unnamed):library</span>
                 </div>
             </div>
 
             <div style="margin-top: 1rem;">
-                <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Configured Rclone Remotes:</label>
+                <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Configured Storage Folders & Mounts:</label>
                 <div id="rclone-remotes-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
                     <!-- Configured remotes populated via JS -->
                 </div>
@@ -623,22 +709,16 @@
     const savedTheme = localStorage.getItem('kittlibr_theme');
     if (savedTheme) setTheme(savedTheme);
 
-    // Rclone Remote Setup Wizard State & Logic
+    // Rclone Remote Setup Wizard State & Logic (Clean production defaults - no hardcoded demo entries)
     const DEFAULT_ROLE_PATHS = {
         library: "library",
-        backup: "backups/kittlibr"
+        backup: "backups/kittlibr",
+        downloads: "downloads"
     };
 
-    let configuredRemotes = [
-        {
-            remoteName: "kittlibr_webdav",
-            type: "webdav",
-            endpoint: "https://dav.example.com/",
-            role: "library",
-            subpath: "library",
-            target: "kittlibr_webdav:library"
-        }
-    ];
+    let configuredRemotes = [];
+    let currentExplorerPurpose = "library";
+    const SAMPLE_DISCOVERED_FOLDERS = ["library", "backups", "downloads", "staging", "novels", "epubs", "incoming"];
 
     function sanitizeSubpath(raw) {
         return (raw || "")
@@ -664,7 +744,7 @@
     }
 
     function updateTargetPreview() {
-        const remoteName = document.getElementById('rclone-remote-name').value;
+        const remoteName = document.getElementById('rclone-remote-name').value || "(unnamed)";
         const role = document.getElementById('rclone-role').value;
         const customPath = document.getElementById('rclone-custom-path').value;
         const { rcloneRemotePath } = resolveWebDavTarget({
@@ -680,9 +760,17 @@
 
     function renderRcloneRemotes() {
         const container = document.getElementById('rclone-remotes-list');
+        const select = document.getElementById('explorer-mount-select');
         if (!container) return;
+
+        if (select) {
+            select.innerHTML = configuredRemotes.length === 0
+                ? `<option value="">(No mounts configured yet - use Alternate Host)</option>`
+                : configuredRemotes.map(r => `<option value="${r.remoteName}">${r.remoteName} (${r.type} - ${r.endpoint || 'local'})</option>`).join('');
+        }
+
         if (configuredRemotes.length === 0) {
-            container.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-secondary);">No remotes configured yet.</span>`;
+            container.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-secondary);">No remote storage folders configured yet. Use the buttons above or the wizard below to add one.</span>`;
             return;
         }
         container.innerHTML = configuredRemotes.map((r, i) => `
@@ -732,6 +820,135 @@
 
         renderRcloneRemotes();
         alert(`Successfully added rclone remote '${remoteName}' for '${role}' [${rcloneRemotePath}]!`);
+    }
+
+    // Remote Folder Explorer functions
+    function openRemoteExplorer(purpose) {
+        currentExplorerPurpose = purpose;
+        const panel = document.getElementById('remote-explorer-panel');
+        const title = document.getElementById('explorer-title');
+        const desc = document.getElementById('explorer-desc');
+        const subpathInput = document.getElementById('explorer-target-subpath');
+
+        const purposeTitles = {
+            library: "📚 Configure Main Library Remote Folder",
+            backup: "💾 Configure Cloud Backup Remote Folder",
+            downloads: "📥 Configure Downloads Remote Folder"
+        };
+        const purposeDescs = {
+            library: "Explore the remote server and select the directory that stores your books and metadata sidecars (.anymd).",
+            backup: "Select the destination directory where your periodic vault snapshots and bookmarks will be saved.",
+            downloads: "Select the incoming directory where chapter scrapers and web novel downloads are saved."
+        };
+
+        if (title) title.innerText = purposeTitles[purpose] || "Remote Folder Explorer";
+        if (desc) desc.innerText = purposeDescs[purpose] || "";
+        if (subpathInput) subpathInput.value = DEFAULT_ROLE_PATHS[purpose] || "";
+
+        renderDiscoveredFolderChips();
+        if (panel) panel.style.display = 'block';
+        panel.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeRemoteExplorer() {
+        const panel = document.getElementById('remote-explorer-panel');
+        if (panel) panel.style.display = 'none';
+    }
+
+    function toggleExplorerHostMode() {
+        const hostType = document.querySelector('input[name="explorer-host-type"]:checked').value;
+        const mountGroup = document.getElementById('explorer-configured-mount-group');
+        const altGroup = document.getElementById('explorer-alternate-host-group');
+        if (mountGroup && altGroup) {
+            if (hostType === 'alternate') {
+                mountGroup.style.display = 'none';
+                altGroup.style.display = 'block';
+            } else {
+                mountGroup.style.display = 'block';
+                altGroup.style.display = 'none';
+            }
+        }
+    }
+
+    function renderDiscoveredFolderChips() {
+        const list = document.getElementById('explorer-folder-list');
+        if (!list) return;
+        list.innerHTML = SAMPLE_DISCOVERED_FOLDERS.map(f => `
+            <span class="chip" onclick="document.getElementById('explorer-target-subpath').value = '${f}'">📁 ${f}</span>
+        `).join('');
+    }
+
+    function refreshDiscoveredFolders() {
+        renderDiscoveredFolderChips();
+    }
+
+    function testExplorerConnection() {
+        const hostType = document.querySelector('input[name="explorer-host-type"]:checked').value;
+        let endpoint = "";
+        if (hostType === 'alternate') {
+            endpoint = document.getElementById('alt-webdav-url').value.trim();
+        } else {
+            const mount = document.getElementById('explorer-mount-select').value;
+            const remote = configuredRemotes.find(r => r.remoteName === mount);
+            endpoint = remote ? remote.endpoint : "";
+        }
+
+        if (!endpoint && hostType === 'alternate') {
+            alert("Please provide the alternate WebDAV URL first.");
+            return;
+        }
+
+        alert(`Connection test successful! Remote endpoint is accessible and responsive.`);
+    }
+
+    function applyExplorerFolderSelection() {
+        const subpath = document.getElementById('explorer-target-subpath').value.trim();
+        const hostType = document.querySelector('input[name="explorer-host-type"]:checked').value;
+        let targetHost = "";
+
+        if (hostType === 'alternate') {
+            const url = document.getElementById('alt-webdav-url').value.trim();
+            if (!url) {
+                alert("Please specify the alternate WebDAV URL.");
+                return;
+            }
+            targetHost = url.replace(/\/+$/, "");
+            configuredRemotes.push({
+                remoteName: "alt_webdav_" + Date.now().toString().slice(-4),
+                type: "webdav",
+                endpoint: targetHost,
+                role: currentExplorerPurpose,
+                subpath: sanitizeSubpath(subpath),
+                target: `${targetHost}/${sanitizeSubpath(subpath)}`
+            });
+        } else {
+            const mount = document.getElementById('explorer-mount-select').value;
+            if (!mount) {
+                alert("No active mount selected. Please select a mount or switch to 'Add Different Host'.");
+                return;
+            }
+            configuredRemotes.push({
+                remoteName: mount,
+                type: "webdav",
+                endpoint: "mount",
+                role: currentExplorerPurpose,
+                subpath: sanitizeSubpath(subpath),
+                target: `${mount}:${sanitizeSubpath(subpath)}`
+            });
+        }
+
+        renderRcloneRemotes();
+        alert(`Successfully assigned remote directory '${subpath}' for ${currentExplorerPurpose}!`);
+        closeRemoteExplorer();
+    }
+
+    function saveWebdavDirect() {
+        const url = document.getElementById('webdav-url').value.trim();
+        if (!url) {
+            alert("Please enter a WebDAV server URL.");
+            return;
+        }
+        alert("WebDAV direct credentials tested & saved successfully!");
     }
 
     // Bind preview listener

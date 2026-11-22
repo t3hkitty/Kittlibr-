@@ -39,40 +39,42 @@ fun StorageSyncScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var url by remember { mutableStateOf("https://dav.example.com/kittlibr/") }
+    var url by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var remoteDirectory by remember { mutableStateOf("/kittlibr/backups/") }
+    var remoteDirectory by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<Boolean?>(null) }
 
-    // Rclone Remote Setup Wizard State
+    // Rclone Remote Setup Wizard State (Clean defaults - no hardcoded demo servers)
     var showRcloneWizard by remember { mutableStateOf(false) }
-    var rcloneRemoteName by remember { mutableStateOf("kittlibr_remote") }
+    var rcloneRemoteName by remember { mutableStateOf("") }
     var rcloneStorageType by remember { mutableStateOf("webdav") }
-    var rcloneFolderRole by remember { mutableStateOf("library") } // "library", "backup", "custom"
-    var rcloneCustomPath by remember { mutableStateOf("my_books") }
-    var rcloneEndpoint by remember { mutableStateOf("https://dav.example.com/") }
-    var rcloneRemotes by remember {
-        mutableStateOf(
-            listOf("kittlibr_remote (webdav: https://dav.example.com/ - library [target: kittlibr_remote:library])")
-        )
+    var rcloneFolderRole by remember { mutableStateOf("library") } // "library", "backup", "downloads", "custom"
+    var rcloneCustomPath by remember { mutableStateOf("") }
+    var rcloneEndpoint by remember { mutableStateOf("") }
+    var rcloneRemotes by remember { mutableStateOf(listOf<String>()) }
+
+    // Remote Folder Explorer State
+    var showFolderExplorer by remember { mutableStateOf(false) }
+    var explorerTargetPurpose by remember { mutableStateOf("library") } // "library", "downloads", "backup"
+    var explorerSelectedRemote by remember { mutableStateOf("") }
+    var explorerCurrentPath by remember { mutableStateOf("") }
+    var explorerSubfolders by remember {
+        mutableStateOf(listOf("library", "backups", "downloads", "staging", "novels", "epubs", "incoming"))
     }
+    var explorerIsCustomHost by remember { mutableStateOf(false) }
+    var explorerNewHostUrl by remember { mutableStateOf("") }
+    var explorerNewHostUser by remember { mutableStateOf("") }
+    var explorerNewHostPass by remember { mutableStateOf("") }
 
     // Persistent Settings to include in cloud backup
     var includeSettingsInBackup by remember { mutableStateOf(true) }
     var autoSyncBackups by remember { mutableStateOf(true) }
     var backupFrequency by remember { mutableStateOf("Daily") }
 
-    var storageFolders by remember {
-        mutableStateOf(
-            listOf(
-                StorageFolderInfo("/storage/emulated/0/Books/LibraryMaster", false, true, false),
-                StorageFolderInfo("Google Drive / CloudSync", true, false, false),
-                StorageFolderInfo("/storage/emulated/0/Download/Incoming", false, false, true)
-            )
-        )
-    }
+    // Configured Storage Folders (User managed)
+    var storageFolders by remember { mutableStateOf(listOf<StorageFolderInfo>()) }
 
     var isRefreshing by remember { mutableStateOf(false) }
     var lastImportCount by remember { mutableStateOf(0) }
@@ -172,36 +174,95 @@ fun StorageSyncScreen(
                     Text("Select storage folders for each purpose. Each button launches the Android document chooser and saves access permissions immediately upon selection.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Purpose Launchers
-                    Button(
-                        onClick = { mainLibraryLauncher.launch(null) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.LibraryBooks, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Set Main Library Path (Document Chooser)")
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = { cloudStorageLauncher.launch(null) },
+                    // Folder Explanations and Launchers
+                    Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                        shape = MaterialTheme.shapes.small
                     ) {
-                        Icon(Icons.Default.CloudSync, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add Cloud Storage Folder (Google Drive / Nextcloud)")
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("📁 Storage Folder Roles & Explanations:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("• 📚 Main Library: Primary repository for your catalog, markdown sidecars (.anymd), tags, and metadata.", style = MaterialTheme.typography.bodySmall)
+                            Text("• ☁️ Cloud Sync / Backup: Destination for whole-vault mirrors, bookmark synchronization, and app state.", style = MaterialTheme.typography.bodySmall)
+                            Text("• 📥 Downloads / Staging: Incoming directory where web scrapers (librscrape), browser downloads, and external intent files land before cataloging.", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
 
-                    Button(
-                        onClick = { downloadOnlyLauncher.launch(null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add Download-Only Folder")
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Purpose Launchers (Local Document Picker + WebDAV/Rclone Remote Explorer)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { mainLibraryLauncher.launch(null) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.LibraryBooks, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Local Library Path")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    explorerTargetPurpose = "library"
+                                    explorerCurrentPath = "library"
+                                    showFolderExplorer = true
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("WebDAV Explorer")
+                            }
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { cloudStorageLauncher.launch(null) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                            ) {
+                                Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Local Cloud Folder")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    explorerTargetPurpose = "backup"
+                                    explorerCurrentPath = "backups/kittlibr"
+                                    showFolderExplorer = true
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Explore Backup Host")
+                            }
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { downloadOnlyLauncher.launch(null) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Local Downloads")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    explorerTargetPurpose = "downloads"
+                                    explorerCurrentPath = "downloads"
+                                    showFolderExplorer = true
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Explore Downloads")
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -507,13 +568,14 @@ fun StorageSyncScreen(
                     )
                     Text("Target Folder Purpose / Role:", style = MaterialTheme.typography.labelMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("library", "backup", "custom").forEach { role ->
+                        listOf("library", "backup", "downloads", "custom").forEach { role ->
                             FilterChip(
                                 selected = rcloneFolderRole == role,
                                 onClick = { rcloneFolderRole = role },
                                 label = { Text(when (role) {
                                     "library" -> "📚 Library"
                                     "backup" -> "💾 Backup"
+                                    "downloads" -> "📥 Downloads"
                                     else -> "⚙️ Custom"
                                 }) }
                             )
@@ -528,7 +590,11 @@ fun StorageSyncScreen(
                             singleLine = true
                         )
                     } else {
-                        val defaultSub = if (rcloneFolderRole == "library") "library" else "backups/kittlibr"
+                        val defaultSub = when (rcloneFolderRole) {
+                            "library" -> "library"
+                            "backup" -> "backups/kittlibr"
+                            else -> "downloads"
+                        }
                         Text("Resolved Subpath: $defaultSub", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     }
                 }
@@ -541,6 +607,7 @@ fun StorageSyncScreen(
                             val subpath = when (rcloneFolderRole) {
                                 "library" -> "library"
                                 "backup" -> "backups/kittlibr"
+                                "downloads" -> "downloads"
                                 else -> rcloneCustomPath.trim().trim('/').replace('\\', '/')
                             }
                             val targetPath = if (subpath.isNotBlank()) "$cleanBase:$subpath" else "$cleanBase:"
@@ -556,6 +623,154 @@ fun StorageSyncScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRcloneWizard = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Remote WebDAV Folder Explorer Dialog
+    if (showFolderExplorer) {
+        AlertDialog(
+            onDismissRequest = { showFolderExplorer = false },
+            title = {
+                Text("Remote Folder Explorer (${when (explorerTargetPurpose) {
+                    "library" -> "📚 Main Library"
+                    "downloads" -> "📥 Downloads"
+                    else -> "💾 Backup"
+                }})")
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        when (explorerTargetPurpose) {
+                            "library" -> "Select the remote folder that stores your primary eBook collection and AnyMD index."
+                            "downloads" -> "Select the incoming staging folder for downloaded chapters and scraped files."
+                            else -> "Select the target backup directory for full state and library snapshots."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    // Host mode switcher: existing rclone remote vs alternate host
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (explorerIsCustomHost) "🌐 Using Alternate Host" else "⚡ Using Configured Remote", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { explorerIsCustomHost = !explorerIsCustomHost }) {
+                            Text(if (explorerIsCustomHost) "Switch to Configured Remote" else "+ Add Different Host")
+                        }
+                    }
+
+                    if (explorerIsCustomHost) {
+                        OutlinedTextField(
+                            value = explorerNewHostUrl,
+                            onValueChange = { explorerNewHostUrl = it },
+                            label = { Text("WebDAV Host URL (e.g. https://cloud.example.com/)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = explorerNewHostUser,
+                            onValueChange = { explorerNewHostUser = it },
+                            label = { Text("Username (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = explorerNewHostPass,
+                            onValueChange = { explorerNewHostPass = it },
+                            label = { Text("Password (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation()
+                        )
+                    } else {
+                        if (rcloneRemotes.isEmpty()) {
+                            Text("No rclone remotes configured yet. You can add an alternate host above or configure a remote via the Rclone wizard.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text("Select Configured Mount:", style = MaterialTheme.typography.labelSmall)
+                            rcloneRemotes.forEach { remote ->
+                                val nameOnly = remote.substringBefore(" ")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    RadioButton(
+                                        selected = explorerSelectedRemote == nameOnly,
+                                        onClick = { explorerSelectedRemote = nameOnly }
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(remote, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    // Subpath exploration / selection
+                    Text("Select Remote Directory:", style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(
+                        value = explorerCurrentPath,
+                        onValueChange = { explorerCurrentPath = it },
+                        label = { Text("Remote Subpath") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Text("Discovered Directory Trees on Remote:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        explorerSubfolders.forEach { sub ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = if (explorerCurrentPath == sub) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                shape = MaterialTheme.shapes.extraSmall
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(sub, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    TextButton(onClick = { explorerCurrentPath = sub }) {
+                                        Text("Select")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val hostPrefix = if (explorerIsCustomHost && explorerNewHostUrl.isNotBlank()) {
+                            "${explorerNewHostUrl.trim().removeSuffix("/")}/"
+                        } else if (explorerSelectedRemote.isNotBlank()) {
+                            "${explorerSelectedRemote.trim().removeSuffix(":")}:"
+                        } else {
+                            "cloud_remote:"
+                        }
+                        val chosenFolder = "$hostPrefix${explorerCurrentPath.trim().trim('/')}"
+                        val isMain = explorerTargetPurpose == "library"
+                        val isDown = explorerTargetPurpose == "downloads"
+                        storageFolders = storageFolders + StorageFolderInfo(chosenFolder, true, isMain, isDown)
+                        Toast.makeText(context, "Selected remote folder '$chosenFolder' for $explorerTargetPurpose!", Toast.LENGTH_LONG).show()
+                        showFolderExplorer = false
+                    }
+                ) {
+                    Text("Assign to $explorerTargetPurpose")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFolderExplorer = false }) { Text("Cancel") }
             }
         )
     }

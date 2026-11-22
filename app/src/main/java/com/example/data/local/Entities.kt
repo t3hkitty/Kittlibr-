@@ -10,7 +10,7 @@ data class BookEntity(
     val author: String,
     val description: String,
     val coverUrl: String,
-    val format: String, // EPUB, TXT, NOVEL, PDF
+    val format: String, // EPUB, TXT, NOVEL, PDF, MD
     val filePath: String,
     val currentPage: Int = 0,
     val totalPages: Int = 100,
@@ -19,7 +19,10 @@ data class BookEntity(
     val status: String = "READING", // READING, COMPLETED, PLAN_TO_READ
     val tags: String, // comma separated tags
     val series: String = "",
+    val seriesIndex: Float = 1.0f, // Series volume/chapter index for web novels
     val isFavorite: Boolean = false,
+    val hasCopy: Boolean = true, // false if missing copy (wishlist / needs acquisition)
+    val externalUri: String = "", // link to external reader / Play Books app
     val addedDate: Long = System.currentTimeMillis(),
     val lastReadDate: Long = System.currentTimeMillis()
 )

@@ -1,6 +1,10 @@
 package com.example.ui.screens.storage
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -29,11 +33,24 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
     var password by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<Boolean?>(null) }
+    var selectedFolderUri by remember { mutableStateOf<String?>(null) }
+
+    // Document Tree Picker for Google Drive, Koofr, or local storage providers
+    val takePerFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    val documentTreeLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(it, takePerFlags)
+            selectedFolderUri = it.toString()
+            Toast.makeText(context, "Selected Cloud Storage Folder: ${it.lastPathSegment}", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("WebDAV Storage & Cloud Sync", fontWeight = FontWeight.Bold) },
+                title = { Text("Storage, Document Provider & Cloud Sync", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }
@@ -48,6 +65,37 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Android Document Provider (Google Drive, Koofr, Local Folders) Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.FolderShared, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Cloud Storage & Document Providers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Select a folder from any installed Android Document Provider (Google Drive, Koofr, Nextcloud, or device storage) to store and sync your library.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { documentTreeLauncher.launch(null) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.FolderOpen, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Pick Cloud Storage Folder (Google Drive / Koofr)")
+                    }
+
+                    if (selectedFolderUri != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Linked Folder: $selectedFolderUri", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            }
+
             // WebDAV Config Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -60,7 +108,7 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
                         Text("WebDAV Library Storage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Connect your own Nextcloud, OwnCloud, or WebDAV server to store and sync your book files and reading progress.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    Text("Connect your own Nextcloud, OwnCloud, or WebDAV server.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     OutlinedTextField(
@@ -130,30 +178,6 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
                     if (testResult == true) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("Status: Connected & Synchronized", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            // Firebase Cloud Sync Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CloudSync, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Firebase Cloud Sync & Firestore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Your bookmarks, notes, and reading metadata are securely synced with Firebase Firestore.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { Toast.makeText(context, "Cloud sync is active and up to date.", Toast.LENGTH_SHORT).show() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Sync Library Now")
                     }
                 }
             }

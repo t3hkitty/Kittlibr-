@@ -33,6 +33,7 @@ import com.example.ui.screens.discovery.DiscoveryViewModel
 import com.example.ui.screens.library.LibraryViewModel
 import com.example.ui.screens.reader.ReaderScreen
 import com.example.ui.screens.reader.ReaderViewModel
+import com.example.ui.screens.settings.ThemeConfigurationScreen
 import com.example.ui.theme.AppThemeStyle
 import com.example.ui.theme.KittlibrTheme
 
@@ -117,9 +118,17 @@ fun KittlibrAppNavGraph(
                 webDavRepository = webDavRepository,
                 currentAppTheme = currentAppTheme,
                 onThemeChange = onThemeChange,
+                onOpenThemeConfig = { navController.navigate("theme_config") },
                 onBookClick = { bookId ->
                     navController.navigate("reader/$bookId")
                 }
+            )
+        }
+        composable("theme_config") {
+            ThemeConfigurationScreen(
+                currentAppTheme = currentAppTheme,
+                onThemeChange = onThemeChange,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(

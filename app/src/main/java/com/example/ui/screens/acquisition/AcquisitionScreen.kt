@@ -1,5 +1,8 @@
 package com.example.ui.screens.acquisition
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -23,6 +27,7 @@ fun AcquisitionScreen(
     libraryViewModel: LibraryViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabTitles = listOf("Explore", "Sources", "Downloads", "Updates", "History")
 
@@ -35,6 +40,27 @@ fun AcquisitionScreen(
     var showWebViewDialog by remember { mutableStateOf(false) }
     var annasKey by remember { mutableStateOf("") }
     var successMessage by remember { mutableStateOf<String?>(null) }
+
+    // Local File Picker Launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val fileName = it.lastPathSegment ?: "Imported File"
+            libraryViewModel.addBook(
+                title = fileName.substringBeforeLast("."),
+                author = "Local Author",
+                description = "Imported from local device storage: $it",
+                coverUrl = "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600",
+                format = if (fileName.endsWith(".pdf", true)) "PDF" else "EPUB",
+                tags = "LocalImport, Storage",
+                series = "",
+                hasCopy = true,
+                externalUri = it.toString()
+            )
+            successMessage = "Successfully imported local file: $fileName"
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -91,9 +117,22 @@ fun AcquisitionScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
-                            Text("Web Novel & Anna's Archive Acquisition", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Web Novel & Local File Import", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("Import from NovelUpdates, Novelpia, RoyalRoad, or Anna's Archive with automatic Calibre cleanup and format preference.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                            Text("Import local .epub, .pdf, .md files from device storage or scrape from NovelUpdates and Anna's Archive.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    filePickerLauncher.launch(arrayOf("application/epub+zip", "application/pdf", "text/plain", "*/*"))
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Import Local Ebook / PDF from Device")
+                            }
+
                             Spacer(modifier = Modifier.height(16.dp))
 
                             OutlinedTextField(

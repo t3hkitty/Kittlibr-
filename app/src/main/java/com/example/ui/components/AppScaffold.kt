@@ -12,8 +12,10 @@ import androidx.compose.ui.platform.testTag
 import com.example.data.repository.LibraryRepository
 import com.example.data.repository.WebDavRepository
 import com.example.ui.screens.acquisition.AcquisitionScreen
+import com.example.ui.screens.calibre.CalibreScreen
 import com.example.ui.screens.discovery.DiscoveryScreen
 import com.example.ui.screens.discovery.DiscoveryViewModel
+import com.example.ui.screens.extensions.ExtensionManagerScreen
 import com.example.ui.screens.library.LibraryScreen
 import com.example.ui.screens.library.LibraryViewModel
 import com.example.ui.screens.settings.SettingsScreen
@@ -29,17 +31,20 @@ fun AppScaffold(
     webDavRepository: WebDavRepository,
     currentAppTheme: AppThemeStyle,
     onThemeChange: (AppThemeStyle) -> Unit,
+    onOpenThemeConfig: () -> Unit,
     onBookClick: (Long) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    val items = listOf("Library", "Discover", "Acquire", "Stats", "Storage", "Settings")
+    val items = listOf("Library", "Discover", "LibrManage", "Acquire", "Stats", "Storage", "Extensions", "Settings")
     val icons = listOf(
         Icons.Default.Book,
         Icons.Default.Explore,
+        Icons.Default.Edit,
         Icons.Default.AddCircle,
         Icons.Default.BarChart,
         Icons.Default.Storage,
+        Icons.Default.Extension,
         Icons.Default.Settings
     )
 
@@ -69,18 +74,22 @@ fun AppScaffold(
                 0 -> LibraryScreen(
                     viewModel = libraryViewModel,
                     onBookClick = onBookClick,
-                    onAddClick = { selectedTab = 2 }
+                    onAddClick = { selectedTab = 3 }
                 )
                 1 -> DiscoveryScreen(viewModel = discoveryViewModel)
-                2 -> AcquisitionScreen(
+                2 -> CalibreScreen(viewModel = libraryViewModel)
+                3 -> AcquisitionScreen(
                     libraryViewModel = libraryViewModel,
                     onBack = { selectedTab = 0 }
                 )
-                3 -> StatsScreen(libraryRepository = libraryRepository)
-                4 -> StorageSyncScreen(webDavRepository = webDavRepository)
-                5 -> SettingsScreen(
+                4 -> StatsScreen(libraryRepository = libraryRepository)
+                5 -> StorageSyncScreen(webDavRepository = webDavRepository)
+                6 -> ExtensionManagerScreen()
+                7 -> SettingsScreen(
+                    libraryViewModel = libraryViewModel,
                     currentAppTheme = currentAppTheme,
-                    onThemeChange = onThemeChange
+                    onThemeChange = onThemeChange,
+                    onOpenThemeConfig = onOpenThemeConfig
                 )
             }
         }

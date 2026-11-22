@@ -14,34 +14,29 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.repository.AiRepository
+import com.example.ui.screens.library.LibraryViewModel
 import com.example.ui.theme.AppThemeStyle
-import com.example.ui.theme.ReaderThemes
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    libraryViewModel: LibraryViewModel,
     currentAppTheme: AppThemeStyle,
-    onThemeChange: (AppThemeStyle) -> Unit
+    onThemeChange: (AppThemeStyle) -> Unit,
+    onOpenThemeConfig: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val aiRepository = AiRepository()
+    val longPressAction by libraryViewModel.longPressAction.collectAsState()
 
     var selectedFont by remember { mutableStateOf("Inter / Sans-serif") }
-    var autoNightMode by remember { mutableStateOf(true) }
     var useExternalReader by remember { mutableStateOf(false) }
-
-    // Theme Builder state
-    var selectedPrimaryColor by remember { mutableStateOf(Color(0xFF6750A4)) }
-    var isCustomDark by remember { mutableStateOf(true) }
-    var customThemeName by remember { mutableStateOf("My Custom Theme") }
-    var customThemeCreated by remember { mutableStateOf(false) }
 
     var isCleaning by remember { mutableStateOf(false) }
     var cleanedResult by remember { mutableStateOf<String?>(null) }
@@ -49,7 +44,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings & Custom Theme Builder", fontWeight = FontWeight.Bold) },
+                title = { Text("Settings & Preferences", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }
@@ -64,76 +59,61 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Reader Custom Theme Builder Card (Primary Color Chooser + Complementary + Auto Night/Day Inversion)
+            // Theme Configuration Screen Launcher Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                onClick = onOpenThemeConfig
+            ) {
+                Row(
+                    modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Advanced Theme Configuration", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text("OLED True Black, Sepia/Reverse Sepia, & Color Picker", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+
+            // Library Tap & Hold Press Configuration Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reading Theme Builder", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    }
+                    Text("Library Tap & Hold Press Settings", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Pick a primary color and auto-create a custom reading theme with complementary accents and automatic night/day font-vs-background inversion.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    Text("Tap opens the 'More Info' modal (choose how to read, external reader, TTS, or Markdown export). Configure what long press (hold press) does:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text("Choose Primary Accent Color:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val colorOptions = listOf(
-                        Pair(Color(0xFF6750A4), "Purple"),
-                        Pair(Color(0xFF2E7D32), "Emerald"),
-                        Pair(Color(0xFFD32F2F), "Crimson"),
-                        Pair(Color(0xFFE65100), "Amber"),
-                        Pair(Color(0xFF0288D1), "Cyan"),
-                        Pair(Color(0xFFC2185B), "Rose")
+                    val options = listOf(
+                        Pair("auto_open", "Auto Open Book (Instant Reader Launch)"),
+                        Pair("librmanage_edit", "LibrManage Edit (Metadata Editor)")
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        colorOptions.forEach { (color, name) ->
-                            FilterChip(
-                                selected = selectedPrimaryColor == color,
-                                onClick = { selectedPrimaryColor = color },
-                                label = { Text(name) }
+                    options.forEach { (actionKey, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { libraryViewModel.setLongPressAction(actionKey) }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = longPressAction == actionKey,
+                                onClick = { libraryViewModel.setLongPressAction(actionKey) }
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = isCustomDark,
-                            onCheckedChange = { isCustomDark = it }
-                        )
-                        Text("Auto Night Mode (Invert font vs background for dark contrast)", style = MaterialTheme.typography.bodyMedium)
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            val newTheme = ReaderThemes.createCustomTheme(selectedPrimaryColor, isCustomDark)
-                            ReaderThemes.all.add(newTheme)
-                            customThemeCreated = true
-                            Toast.makeText(context, "Custom theme '${newTheme.name}' created and added to Reader!", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Generate & Save Custom Reading Theme")
-                    }
-
-                    if (customThemeCreated) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Status: Custom theme added successfully to reader theme options!", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -144,7 +124,7 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("App Interface Themes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("App Interface Themes", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Choose built-in app visual themes: Mocha, Grass, Galaxy, Sci-Fi, and Kawaii.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.height(16.dp))
@@ -183,7 +163,7 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Google Fonts Typography", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Google Fonts Typography", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(12.dp))
                     listOf("Inter / Sans-serif", "Lora / Serif", "JetBrains Mono / Monospace", "Merriweather").forEach { fontName ->
                         Row(
@@ -210,7 +190,7 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("External Reader Integration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("External Reader Integration", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Open books in external PDF/EPUB readers (Librera Reader, Moon+ Reader). Reading stats are safely truncated to launch time.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.height(16.dp))
@@ -252,7 +232,7 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Calibre AI Metadata Cleaner", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Calibre AI Metadata Cleaner", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Clean up poorly formatted book titles, authors, and missing tags using Gemini AI.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     Spacer(modifier = Modifier.height(16.dp))

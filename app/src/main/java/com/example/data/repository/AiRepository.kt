@@ -33,6 +33,38 @@ class AiRepository {
         }
     }
 
+    suspend fun getSimilarRecommendations(title: String, author: String, tags: String): String {
+        return try {
+            withTimeout(45_000L) {
+                val prompt = "The user enjoyed the book '$title' by $author (tags: $tags). " +
+                        "Suggest 3 similar books or web novels that match this style, tone, and genre, with a 2-sentence pitch for each."
+                val response = model.generateContent(prompt)
+                response.text ?: "No similar books found."
+            }
+        } catch (e: Exception) {
+            "Failed to fetch similar recommendations: ${e.localizedMessage}"
+        }
+    }
+
+    suspend fun inferRatingFromEmoji(emoji: String, bookTitle: String): String {
+        return try {
+            withTimeout(30_000L) {
+                val prompt = "The user finished reading '$bookTitle' and reacted with the emoji '$emoji'. " +
+                        "Infer a star rating from 1 to 5 based on this emoji reaction, and write a 1-sentence enthusiastic or thoughtful AI review reaction. Return format: 'Rating: X/5 stars - [AI reaction]'"
+                val response = model.generateContent(prompt)
+                response.text ?: "Rating: 5/5 stars - Amazing read!"
+            }
+        } catch (e: Exception) {
+            when (emoji) {
+                "🤩", "😍", "🤯" -> "Rating: 5/5 stars - Absolute masterpiece!"
+                "😊", "👍" -> "Rating: 4/5 stars - Highly enjoyable read!"
+                "😐" -> "Rating: 3/5 stars - An average, decent read."
+                "🥱" -> "Rating: 2/5 stars - A bit slow or underwhelming."
+                else -> "Rating: 1/5 stars - Not quite to their taste."
+            }
+        }
+    }
+
     suspend fun cleanMetadata(title: String, author: String, description: String): String {
         return try {
             withTimeout(45_000L) {

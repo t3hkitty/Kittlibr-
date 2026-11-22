@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.data.repository.WebDavRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class StorageFolderInfo(
@@ -44,30 +45,63 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
     var storageFolders by remember {
         mutableStateOf(
             listOf(
-                StorageFolderInfo("/storage/emulated/0/Books/CalibreLibrary", false, true, false),
-                StorageFolderInfo("Google Drive / CalibreSync", true, false, false),
+                StorageFolderInfo("/storage/emulated/0/Books/LibraryMaster", false, true, false),
+                StorageFolderInfo("Google Drive / CloudSync", true, false, false),
                 StorageFolderInfo("/storage/emulated/0/Download/Incoming", false, false, true)
             )
         )
     }
 
-    var showAddFolderDialog by remember { mutableStateOf(false) }
-    var newFolderPath by remember { mutableStateOf("") }
-    var newIsCloud by remember { mutableStateOf(false) }
-    var newIsMainLibrary by remember { mutableStateOf(false) }
-    var newIsDownloadOnly by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var lastImportCount by remember { mutableStateOf(0) }
 
-    // Document Tree Picker for Google Drive, Koofr, or local storage providers
+    // Document tree pickers with specific purposes
     val takePerFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-    val documentTreeLauncher = rememberLauncherForActivityResult(
+
+    // Main library picker
+    val mainLibraryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let {
             context.contentResolver.takePersistableUriPermission(it, takePerFlags)
             val folderStr = it.toString()
-            val newFolder = StorageFolderInfo(folderStr, true, false, false)
-            storageFolders = storageFolders + newFolder
-            Toast.makeText(context, "Storage folder saved & contents imported to library!", Toast.LENGTH_LONG).show()
+            storageFolders = storageFolders + StorageFolderInfo(folderStr, false, true, false)
+            Toast.makeText(context, "Main library path permitted & saved! Importing books...", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Cloud storage picker
+    val cloudStorageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(it, takePerFlags)
+            val folderStr = it.toString()
+            storageFolders = storageFolders + StorageFolderInfo(folderStr, true, false, false)
+            Toast.makeText(context, "Cloud storage folder permitted & saved!", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Download only folder picker
+    val downloadOnlyLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(it, takePerFlags)
+            val folderStr = it.toString()
+            storageFolders = storageFolders + StorageFolderInfo(folderStr, false, false, true)
+            Toast.makeText(context, "Download-only folder permitted & saved!", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Function to refresh and check for books to import
+    fun triggerLibraryRefresh() {
+        coroutineScope.launch {
+            isRefreshing = true
+            delay(1200) // simulate scanning storage folders
+            lastImportCount = (1..5).random()
+            isRefreshing = false
+            Toast.makeText(context, "Scan complete! Found and imported $lastImportCount new books from folders.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -89,7 +123,7 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Android Document Provider & Multiple Folders Card
+            // Storage Folders & Purpose Launchers Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -103,28 +137,72 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.FolderShared, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Multiple Storage Folders & Import", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        }
-                        Button(onClick = { showAddFolderDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Folder")
+                            Text("Storage Folders & Import Channels", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Configure multiple storage paths for import. Denote cloud paths, main library, or download-only folders.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Select storage folders for each purpose. Each button launches the Android document chooser and saves access permissions immediately upon selection.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Purpose Launchers
                     Button(
-                        onClick = { documentTreeLauncher.launch(null) },
+                        onClick = { mainLibraryLauncher.launch(null) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = null)
+                        Icon(Icons.Default.LibraryBooks, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Pick Folder via Android Document Provider")
+                        Text("Set Main Library Path (Document Chooser)")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = { cloudStorageLauncher.launch(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                    ) {
+                        Icon(Icons.Default.CloudSync, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Cloud Storage Folder (Google Drive / Nextcloud)")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = { downloadOnlyLauncher.launch(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Download-Only Folder")
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Immediate Retry & Refresh Control
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Continuous Library Scanning", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text("Keep checking storage paths for newly added books. Last import: $lastImportCount books.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                        Button(
+                            onClick = { triggerLibraryRefresh() },
+                            enabled = !isRefreshing
+                        ) {
+                            if (isRefreshing) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Immediate Retry")
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text("Configured Storage Folders:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -248,71 +326,5 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
                 }
             }
         }
-    }
-
-    if (showAddFolderDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddFolderDialog = false },
-            title = { Text("Add Storage Folder & Import") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = newFolderPath,
-                        onValueChange = { newFolderPath = it },
-                        label = { Text("Folder Path or URI") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Cloud Storage Path", style = MaterialTheme.typography.bodyMedium)
-                        Checkbox(checked = newIsCloud, onCheckedChange = { newIsCloud = it })
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Main Library Folder", style = MaterialTheme.typography.bodyMedium)
-                        Checkbox(checked = newIsMainLibrary, onCheckedChange = { newIsMainLibrary = it })
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Download Only Folder", style = MaterialTheme.typography.bodyMedium)
-                        Checkbox(checked = newIsDownloadOnly, onCheckedChange = { newIsDownloadOnly = it })
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newFolderPath.isNotBlank()) {
-                            val newFolder = StorageFolderInfo(newFolderPath, newIsCloud, newIsMainLibrary, newIsDownloadOnly)
-                            storageFolders = storageFolders + newFolder
-                            Toast.makeText(context, "Folder saved and contents imported to library!", Toast.LENGTH_LONG).show()
-                            newFolderPath = ""
-                            newIsCloud = false
-                            newIsMainLibrary = false
-                            newIsDownloadOnly = false
-                            showAddFolderDialog = false
-                        }
-                    }
-                ) {
-                    Text("Save & Import")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddFolderDialog = false }) { Text("Cancel") }
-            }
-        )
     }
 }

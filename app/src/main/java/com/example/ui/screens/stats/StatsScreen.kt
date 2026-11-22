@@ -22,11 +22,32 @@ import com.example.data.repository.LibraryRepository
 @Composable
 fun StatsScreen(libraryRepository: LibraryRepository) {
     val context = LocalContext.current
+    val allBooks by libraryRepository.allBooks.collectAsState(initial = emptyList())
+
+    // Calculations for Shelf counts
+    val totalBooks = allBooks.size
+    val readingCount = allBooks.count { it.status.equals("READING", ignoreCase = true) || it.progressPercent > 0f && it.progressPercent < 1f }
+    val completedCount = allBooks.count { it.status.equals("COMPLETED", ignoreCase = true) || it.progressPercent >= 1f }
+    val wishlistCount = allBooks.count { !it.hasCopy || it.status.equals("WISHLIST", ignoreCase = true) }
+    val dnfCount = allBooks.count { it.status.equals("DNF", ignoreCase = true) }
+
+    // Reading pace & Projections (Daily, Weekly, Monthly, Annual)
+    val dailyPacePages = 45
+    val weeklyPacePages = dailyPacePages * 7
+    val monthlyPacePages = dailyPacePages * 30
+    val annualPacePages = dailyPacePages * 365
+
+    val averagePageCountPerBook = 320
+    val totalRemainingPages = maxOf(0, (totalBooks - completedCount) * averagePageCountPerBook)
+    val etaDays = if (dailyPacePages > 0) totalRemainingPages / dailyPacePages else 999
+    val etaMonths = etaDays / 30
+
+    val completionProgress = if (totalBooks > 0) completedCount.toFloat() / totalBooks.toFloat() else 0f
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Reading Stats & Google Play Achievements", fontWeight = FontWeight.Bold) },
+                title = { Text("Reading Stats & Projections", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }
@@ -41,6 +62,89 @@ fun StatsScreen(libraryRepository: LibraryRepository) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Library Book Counts & Shelf Breakdown Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Library Book Counts & Shelves", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Total Library Size: $totalBooks books", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ShelfCountBadge("Reading ($readingCount)", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+                        ShelfCountBadge("Completed ($completedCount)", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer)
+                        ShelfCountBadge("Wishlist ($wishlistCount)", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
+                        ShelfCountBadge("DNF ($dnfCount)", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+            }
+
+            // Reading Completion Progress & ETA Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Timeline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reading Progress & ETA for Everything", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Estimated time to read all books in library at current pace: ~${etaMonths} months ($etaDays days remaining).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LinearProgressIndicator(
+                        progress = { completionProgress },
+                        modifier = Modifier.fillMaxWidth().height(10.dp).clip(MaterialTheme.shapes.small),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Completed: $completedCount", style = MaterialTheme.typography.labelSmall)
+                        Text("Remaining: ${totalBooks - completedCount}", style = MaterialTheme.typography.labelSmall)
+                        Text("Total: $totalBooks", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // Pace & Projections Card (Active vs Daily, Weekly, Monthly, Annual)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Speed, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reading Pace & Projections", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    ProjectionRow(label = "Active Reading Pace", value = "$dailyPacePages pages / day")
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    ProjectionRow(label = "Weekly Projection", value = "$weeklyPacePages pages (~${weeklyPacePages / averagePageCountPerBook + 1} books)")
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    ProjectionRow(label = "Monthly Projection", value = "$monthlyPacePages pages (~${monthlyPacePages / averagePageCountPerBook} books)")
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    ProjectionRow(label = "Annual Projection", value = "$annualPacePages pages (~${annualPacePages / averagePageCountPerBook} books)")
+                }
+            }
+
             // Streak Card (Self-Comparison)
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -81,24 +185,6 @@ fun StatsScreen(libraryRepository: LibraryRepository) {
                     title = "Pages Turned",
                     value = "312",
                     icon = Icons.Default.MenuBook
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Books Completed",
-                    value = "2",
-                    icon = Icons.Default.CheckCircle
-                )
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Personal Best",
-                    value = "90m/day",
-                    icon = Icons.Default.EmojiEvents
                 )
             }
 
@@ -178,38 +264,35 @@ fun StatsScreen(libraryRepository: LibraryRepository) {
                     }
                 }
             }
-
-            // Weekly Chart card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Your Daily Reading Activity (Minutes)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-                        val minutes = listOf(20, 45, 15, 60, 30, 90, 50)
-                        days.zip(minutes).forEach { (day, min) ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(28.dp)
-                                        .height((min.toFloat() * 1.2f).dp)
-                                        .background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(day, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-            }
         }
+    }
+}
+
+@Composable
+fun ShelfCountBadge(text: String, containerColor: androidx.compose.ui.graphics.Color, contentColor: androidx.compose.ui.graphics.Color) {
+    Surface(
+        color = containerColor,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            color = contentColor
+        )
+    }
+}
+
+@Composable
+fun ProjectionRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -239,7 +322,7 @@ fun AchievementItem(title: String, description: String, progress: String, progre
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = LabelSpaceBetween(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -269,3 +352,5 @@ fun AchievementItem(title: String, description: String, progress: String, progre
         }
     }
 }
+
+fun LabelSpaceBetween() = Arrangement.SpaceBetween

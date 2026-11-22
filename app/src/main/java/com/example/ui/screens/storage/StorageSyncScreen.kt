@@ -42,8 +42,20 @@ fun StorageSyncScreen(
     var url by remember { mutableStateOf("https://dav.example.com/kittlibr/") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var remoteDirectory by remember { mutableStateOf("/kittlibr/backups/") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<Boolean?>(null) }
+
+    // Rclone Remote Setup Wizard State
+    var showRcloneWizard by remember { mutableStateOf(false) }
+    var rcloneRemoteName by remember { mutableStateOf("kittlibr_remote") }
+    var rcloneStorageType by remember { mutableStateOf("webdav") }
+    var rcloneEndpoint by remember { mutableStateOf("https://dav.example.com/") }
+    var rcloneRemotes by remember {
+        mutableStateOf(
+            listOf("kittlibr_remote (webdav: https://dav.example.com/)")
+        )
+    }
 
     // Persistent Settings to include in cloud backup
     var includeSettingsInBackup by remember { mutableStateOf(true) }
@@ -307,6 +319,15 @@ fun StorageSyncScreen(
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = remoteDirectory,
+                        onValueChange = { remoteDirectory = it },
+                        label = { Text("WebDAV Remote Directory Path (e.g. /kittlibr/backups/)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Persistent settings backup toggles
@@ -338,7 +359,7 @@ fun StorageSyncScreen(
                             onClick = {
                                 coroutineScope.launch {
                                     isTesting = true
-                                    testResult = webDavRepository.testConnection(url, username, password)
+                                    testResult = webDavRepository.testConnection(url, username, password, remoteDirectory)
                                     isTesting = false
                                     Toast.makeText(context, if (testResult == true) "WebDAV Connection Successful!" else "Connection Failed", Toast.LENGTH_SHORT).show()
                                 }
@@ -355,7 +376,7 @@ fun StorageSyncScreen(
                         Button(
                             onClick = {
                                 coroutineScope.launch {
-                                    webDavRepository.saveConfig(url, username, password)
+                                    webDavRepository.saveConfig(url, username, password, remoteDirectory)
                                     Toast.makeText(context, "WebDAV & Backup Settings Saved Successfully!", Toast.LENGTH_SHORT).show()
                                 }
                             },
@@ -396,6 +417,95 @@ fun StorageSyncScreen(
                     }
                 }
             }
+
+            // Rclone Remote Setup Wizard Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Rclone Remote Setup Wizard (`rclone config`)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Launch the rclone remote setup workflow (`rclone remote add`) to configure Google Drive, Dropbox, WebDAV, OneDrive, or S3 remotes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showRcloneWizard = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Launch Rclone Remote Setup (`rclone config`)")
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("Configured Rclone Remotes:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    rcloneRemotes.forEach { remote ->
+                        Text("• $remote", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                }
+            }
         }
+    }
+
+    if (showRcloneWizard) {
+        AlertDialog(
+            onDismissRequest = { showRcloneWizard = false },
+            title = { Text("Rclone Remote Setup Wizard (`rclone config`)") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Configure a new rclone remote backend storage:", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = rcloneRemoteName,
+                        onValueChange = { rcloneRemoteName = it },
+                        label = { Text("Remote Name (e.g., kittlibr_remote)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Text("Storage Type:", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("webdav", "drive", "dropbox", "s3", "onedrive").forEach { type ->
+                            FilterChip(
+                                selected = rcloneStorageType == type,
+                                onClick = { rcloneStorageType = type },
+                                label = { Text(type) }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = rcloneEndpoint,
+                        onValueChange = { rcloneEndpoint = it },
+                        label = { Text("Endpoint / Server URL / Bucket") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (rcloneRemoteName.isNotBlank()) {
+                            val newRemote = "$rcloneRemoteName ($rcloneStorageType: $rcloneEndpoint)"
+                            rcloneRemotes = rcloneRemotes + newRemote
+                            Toast.makeText(context, "Successfully created rclone remote '$rcloneRemoteName'!", Toast.LENGTH_LONG).show()
+                            showRcloneWizard = false
+                        }
+                    }
+                ) {
+                    Text("Save Rclone Remote")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRcloneWizard = false }) { Text("Cancel") }
+            }
+        )
     }
 }

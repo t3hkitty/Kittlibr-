@@ -24,16 +24,24 @@ private val LightColorScheme =
 fun KittlibrTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
   dynamicColor: Boolean = true,
+  appThemeStyle: AppThemeStyle = AppThemeStyle.DEFAULT,
   content: @Composable () -> Unit,
 ) {
   val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    when (appThemeStyle) {
+      AppThemeStyle.MOCHA -> MochaColorScheme
+      AppThemeStyle.GRASS -> GrassColorScheme
+      AppThemeStyle.GALAXY -> GalaxyColorScheme
+      AppThemeStyle.SCIFI -> SciFiColorScheme
+      AppThemeStyle.KAWAII -> KawaiiColorScheme
+      AppThemeStyle.DEFAULT -> when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+          val context = LocalContext.current
+          if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
       }
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
     }
 
   MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)

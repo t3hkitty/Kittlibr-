@@ -19,6 +19,7 @@ import com.example.ui.screens.library.LibraryViewModel
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.stats.StatsScreen
 import com.example.ui.screens.storage.StorageSyncScreen
+import com.example.ui.theme.AppThemeStyle
 
 @Composable
 fun AppScaffold(
@@ -26,6 +27,8 @@ fun AppScaffold(
     discoveryViewModel: DiscoveryViewModel,
     libraryRepository: LibraryRepository,
     webDavRepository: WebDavRepository,
+    currentAppTheme: AppThemeStyle,
+    onThemeChange: (AppThemeStyle) -> Unit,
     onBookClick: (Long) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -75,7 +78,10 @@ fun AppScaffold(
                 )
                 3 -> StatsScreen(libraryRepository = libraryRepository)
                 4 -> StorageSyncScreen(webDavRepository = webDavRepository)
-                5 -> SettingsScreen()
+                5 -> SettingsScreen(
+                    currentAppTheme = currentAppTheme,
+                    onThemeChange = onThemeChange
+                )
             }
         }
     }

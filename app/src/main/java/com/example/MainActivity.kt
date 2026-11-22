@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -30,6 +33,7 @@ import com.example.ui.screens.discovery.DiscoveryViewModel
 import com.example.ui.screens.library.LibraryViewModel
 import com.example.ui.screens.reader.ReaderScreen
 import com.example.ui.screens.reader.ReaderViewModel
+import com.example.ui.theme.AppThemeStyle
 import com.example.ui.theme.KittlibrTheme
 
 private const val TAG = "AppCheckInit"
@@ -75,12 +79,17 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            KittlibrTheme {
+            var currentAppTheme by remember { mutableStateOf(AppThemeStyle.DEFAULT) }
+
+            KittlibrTheme(appThemeStyle = currentAppTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    KittlibrAppNavGraph()
+                    KittlibrAppNavGraph(
+                        currentAppTheme = currentAppTheme,
+                        onThemeChange = { currentAppTheme = it }
+                    )
                 }
             }
         }
@@ -88,7 +97,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun KittlibrAppNavGraph() {
+fun KittlibrAppNavGraph(
+    currentAppTheme: AppThemeStyle,
+    onThemeChange: (AppThemeStyle) -> Unit
+) {
     val navController = rememberNavController()
     val context = androidx.compose.ui.platform.LocalContext.current
     val libraryViewModel: LibraryViewModel = viewModel()
@@ -103,6 +115,8 @@ fun KittlibrAppNavGraph() {
                 discoveryViewModel = discoveryViewModel,
                 libraryRepository = libraryRepository,
                 webDavRepository = webDavRepository,
+                currentAppTheme = currentAppTheme,
+                onThemeChange = onThemeChange,
                 onBookClick = { bookId ->
                     navController.navigate("reader/$bookId")
                 }

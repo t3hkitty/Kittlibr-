@@ -21,6 +21,15 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _customCombos = MutableStateFlow(listOf("LitRPG + Yaoi", "Progression Fantasy + Romance", "SciFi + Cyberpunk", "Isekai + Slice of Life"))
+    val customCombos: StateFlow<List<String>> = _customCombos.asStateFlow()
+
+    private val _genreSuggestions = MutableStateFlow<String?>("Tap below to generate AI combination genre suggestions based on your imported books.")
+    val genreSuggestions: StateFlow<String?> = _genreSuggestions.asStateFlow()
+
+    private val _isGenreLoading = MutableStateFlow(false)
+    val isGenreLoading: StateFlow<Boolean> = _isGenreLoading.asStateFlow()
+
     fun generateAiTasteRecommendations() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -35,6 +44,24 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             val result = aiRepository.getTasteRecommendations(historySummary)
             _recommendations.value = result
             _isLoading.value = false
+        }
+    }
+
+    fun addCustomCombo(combo: String) {
+        if (combo.isNotBlank() && !_customCombos.value.contains(combo)) {
+            _customCombos.value = _customCombos.value + combo
+        }
+    }
+
+    fun generateGenreSuggestions() {
+        viewModelScope.launch {
+            _isGenreLoading.value = true
+            val books = libraryRepository.allBooks.first()
+            val tags = books.joinToString(", ") { it.tags }
+            val prompt = "Based on the user's imported library tags and book descriptions ($tags), suggest 4 exciting and niche combination genres (e.g. 'LitRPG + Yaoi + Apocalypse', 'System Progression + Dark Romance') with a brief 1-sentence description for each."
+            val result = aiRepository.getTasteRecommendations(prompt) // reuse AI method or custom prompt
+            _genreSuggestions.value = result
+            _isGenreLoading.value = false
         }
     }
 }

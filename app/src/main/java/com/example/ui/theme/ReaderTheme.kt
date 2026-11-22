@@ -30,6 +30,15 @@ object ReaderThemes {
         accent = Color(0xFFD0BCFF)
     )
 
+    val Amoled = ReaderThemeConfig(
+        name = "OLED True Black",
+        background = Color(0xFF000000),
+        surface = Color(0xFF0D0D0D),
+        text = Color(0xFFFFFFFF),
+        secondaryText = Color(0xFF888888),
+        accent = Color(0xFFBB86FC)
+    )
+
     val Sepia = ReaderThemeConfig(
         name = "Sepia",
         background = Color(0xFFF4ECD8),
@@ -39,13 +48,13 @@ object ReaderThemes {
         accent = Color(0xFF8B4513)
     )
 
-    val Amoled = ReaderThemeConfig(
-        name = "AMOLED Black",
-        background = Color(0xFF000000),
-        surface = Color(0xFF0D0D0D),
-        text = Color(0xFFFFFFFF),
-        secondaryText = Color(0xFF888888),
-        accent = Color(0xFFBB86FC)
+    val ReverseSepia = ReaderThemeConfig(
+        name = "Reverse Sepia",
+        background = Color(0xFF2B221B),
+        surface = Color(0xFF382C24),
+        text = Color(0xFFF4ECD8),
+        secondaryText = Color(0xFFD0B8A0),
+        accent = Color(0xFFE6B87D)
     )
 
     val PaperGreen = ReaderThemeConfig(
@@ -66,5 +75,20 @@ object ReaderThemes {
         accent = Color(0xFFFFD166)
     )
 
-    val all = listOf(Light, Dark, Sepia, Amoled, PaperGreen, Midnight)
+    fun createCustomTheme(primaryColor: Color, isDark: Boolean): ReaderThemeConfig {
+        val bg = if (isDark) Color(0xFF101014) else Color(0xFFFCFCFC)
+        val surf = if (isDark) Color(0xFF1B1B22) else Color(0xFFF0F0F5)
+        val txt = if (isDark) Color(0xFFE6E6FA) else Color(0xFF222228)
+        val secTxt = if (isDark) Color(0xFFA0A0B0) else Color(0xFF666677)
+        return ReaderThemeConfig(
+            name = if (isDark) "Custom Night" else "Custom Day",
+            background = bg,
+            surface = surf,
+            text = txt,
+            secondaryText = secTxt,
+            accent = primaryColor
+        )
+    }
+
+    val all = mutableListOf(Light, Dark, Amoled, Sepia, ReverseSepia, PaperGreen, Midnight)
 }

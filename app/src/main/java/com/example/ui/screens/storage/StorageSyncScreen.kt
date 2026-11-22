@@ -54,6 +54,9 @@ fun StorageSyncScreen(
     var rcloneCustomPath by remember { mutableStateOf("") }
     var rcloneEndpoint by remember { mutableStateOf("") }
     var rcloneRemotes by remember { mutableStateOf(listOf<String>()) }
+    var rcloneTransfers by remember { mutableStateOf("4") }
+    var rcloneVfsCacheMode by remember { mutableStateOf("writes") } // "off", "minimal", "writes", "full"
+    var rcloneDirCacheTime by remember { mutableStateOf("5m") }
 
     // Remote Folder Explorer State
     var showFolderExplorer by remember { mutableStateOf(false) }
@@ -597,6 +600,38 @@ fun StorageSyncScreen(
                         }
                         Text("Resolved Subpath: $defaultSub", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                     }
+
+                    Divider()
+                    Text("⚡ Cloud Transfer Speed Tuning (Optional):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text("Optimized for fast transfers without mounting OS drives or requiring background daemons.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = rcloneTransfers,
+                            onValueChange = { rcloneTransfers = it },
+                            label = { Text("Parallel Transfers") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = rcloneDirCacheTime,
+                            onValueChange = { rcloneDirCacheTime = it },
+                            label = { Text("Dir Cache Time") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+
+                    Text("VFS Cache Mode:", style = MaterialTheme.typography.labelSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("writes", "full", "minimal", "off").forEach { mode ->
+                            FilterChip(
+                                selected = rcloneVfsCacheMode == mode,
+                                onClick = { rcloneVfsCacheMode = mode },
+                                label = { Text(mode) }
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -611,7 +646,8 @@ fun StorageSyncScreen(
                                 else -> rcloneCustomPath.trim().trim('/').replace('\\', '/')
                             }
                             val targetPath = if (subpath.isNotBlank()) "$cleanBase:$subpath" else "$cleanBase:"
-                            val newRemote = "$rcloneRemoteName ($rcloneStorageType: $rcloneEndpoint - $rcloneFolderRole [target: $targetPath])"
+                            val tuningInfo = "transfers=$rcloneTransfers, vfs=$rcloneVfsCacheMode, dirCache=$rcloneDirCacheTime"
+                            val newRemote = "$rcloneRemoteName ($rcloneStorageType: $rcloneEndpoint - $rcloneFolderRole [target: $targetPath | $tuningInfo])"
                             rcloneRemotes = rcloneRemotes + newRemote
                             Toast.makeText(context, "Successfully created rclone remote '$rcloneRemoteName' for $rcloneFolderRole!", Toast.LENGTH_LONG).show()
                             showRcloneWizard = false

@@ -21,9 +21,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.resolve()
 STAGING_DIR = BASE_DIR / "staging_cache"
-ANYMD_URL = "http://127.0.0.1:3050"
-LIBRMANAGE_URL = "http://127.0.0.1:5820"
-RCLONE_URL = "http://127.0.0.1:5572"
+ANYMD_URL = os.environ.get("ANYMD_DAEMON_URL", "http://127.0.0.1:3050").rstrip("/")
+LIBRMANAGE_URL = os.environ.get("LIBRMANAGE_URL", "http://127.0.0.1:5820").rstrip("/")
+RCLONE_URL = os.environ.get("RCLONE_RCD_URL", "http://127.0.0.1:5572").rstrip("/")
 
 passed_steps = []
 failed_steps = []

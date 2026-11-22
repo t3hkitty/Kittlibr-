@@ -308,14 +308,15 @@ def translate_query(req: QueryRequest):
 
 @app.get("/api/rclone/status")
 def rclone_status():
-    """Verify non-FUSE JSON-RPC connection to rclone rcd (127.0.0.1:5572)"""
+    """Verify non-FUSE JSON-RPC connection to rclone rcd (local loopback, Termux on Android, or LAN host)"""
+    rc_url = os.environ.get("RCLONE_RCD_URL", "http://127.0.0.1:5572").rstrip("/")
     try:
-        resp = requests.post(f"{RCLONE_RCD_URL}/core/version", json={}, timeout=2)
+        resp = requests.post(f"{rc_url}/core/version", json={}, timeout=2)
         if resp.status_code == 200:
-            return {"connected": True, "details": resp.json()}
+            return {"connected": True, "details": resp.json(), "endpoint": rc_url, "mode": "network_active"}
     except Exception as e:
-        return {"connected": False, "error": str(e), "endpoint": RCLONE_RCD_URL}
-    return {"connected": False, "endpoint": RCLONE_RCD_URL}
+        return {"connected": False, "error": str(e), "endpoint": rc_url, "mode": "local_fallback"}
+    return {"connected": False, "endpoint": rc_url, "mode": "local_fallback"}
 
 
 if __name__ == "__main__":

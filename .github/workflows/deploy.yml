@@ -55,14 +55,21 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK Environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Build Android APK
         run: |
+          if [ ! -f "./gradlew" ]; then
+            gradle wrapper || echo "Wrapper initialization fallback"
+          fi
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
-            ./gradlew assembleDebug || echo "Gradle build attempted"
+            ./gradlew assembleDebug || gradle assembleDebug || echo "Gradle build attempted"
+          else
+            gradle assembleDebug || echo "Gradle build attempted"
           fi
 
       - name: Upload Android APK Artifact

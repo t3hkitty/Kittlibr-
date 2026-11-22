@@ -321,9 +321,12 @@
     <section id="tab-library" class="view-section active">
         <div class="toolbar">
             <input type="text" id="search-input" class="search-bar" placeholder="Search title, author, series, or tags..." oninput="renderLibrary()">
-            <div style="display: flex; gap: 0.75rem;">
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <input type="file" id="local-book-picker" multiple accept=".epub,.md,.txt" style="display: none;" onchange="handleLocalFilesSelected(event)">
+                <input type="file" id="local-folder-picker" webkitdirectory directory multiple style="display: none;" onchange="handleLocalFilesSelected(event)">
                 <button class="btn btn-outline" onclick="toggleViewMode()">Toggle Grid/List</button>
-                <button class="btn" onclick="triggerImportModal()">+ Import Book / MD</button>
+                <button class="btn" onclick="document.getElementById('local-book-picker').click()">+ Pick Local File(s)</button>
+                <button class="btn btn-outline" onclick="document.getElementById('local-folder-picker').click()">📁 Open Local Folder</button>
             </div>
         </div>
 
@@ -657,6 +660,65 @@
         renderLibrary();
     }
 
+    function handleLocalFilesSelected(event) {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) return;
+
+        let importedCount = 0;
+        files.forEach(file => {
+            const fileName = file.name;
+            const ext = fileName.split('.').pop().toLowerCase();
+            if (!['epub', 'md', 'txt'].includes(ext)) return;
+
+            const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const textContent = typeof e.target.result === 'string' ? e.target.result : `[Binary ${ext.toUpperCase()} Book: ${fileName} - ${Math.round(file.size / 1024)} KB]`;
+                let author = "Local Author";
+                let title = baseName;
+
+                // Simple YAML frontmatter extraction if Markdown
+                if (ext === 'md') {
+                    const match = textContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+                    if (match) {
+                        match[1].split(/\r?\n/).forEach(line => {
+                            if (line.startsWith('title:')) title = line.replace('title:', '').trim().replace(/^['"]|['"]$/g, '');
+                            if (line.startsWith('author:')) author = line.replace('author:', '').trim().replace(/^['"]|['"]$/g, '');
+                        });
+                    }
+                }
+
+                books.unshift({
+                    id: Date.now() + Math.floor(Math.random() * 1000),
+                    title: title,
+                    author: author,
+                    series: "Local Storage",
+                    tags: ["Local", ext.toUpperCase(), "Offline"],
+                    snippet: `Local file: ${fileName} (${Math.round(file.size / 1024)} KB). Loaded directly from device.`,
+                    format: ext.toUpperCase(),
+                    content: textContent
+                });
+
+                importedCount++;
+                try {
+                    localStorage.setItem('kittlibr_local_books', JSON.stringify(books));
+                } catch (e) {
+                    // Quota handled gracefully
+                }
+                renderLibrary();
+            };
+
+            if (ext === 'md' || ext === 'txt') {
+                reader.readAsText(file);
+            } else {
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        alert(`Reading ${files.length} local file(s) into your standalone library.`);
+    }
+
     function triggerImportModal() {
         const title = prompt("Enter Book Title:");
         const author = prompt("Enter Author Name:", "Unknown Author");
@@ -956,6 +1018,19 @@
     const customInput = document.getElementById('rclone-custom-path');
     if (remoteInput) remoteInput.addEventListener('input', updateTargetPreview);
     if (customInput) customInput.addEventListener('input', updateTargetPreview);
+
+    // Restore locally saved offline books from localStorage
+    try {
+        const storedBooks = localStorage.getItem('kittlibr_local_books');
+        if (storedBooks) {
+            const parsed = JSON.parse(storedBooks);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                books = parsed;
+            }
+        }
+    } catch (e) {
+        console.warn("Could not load stored books from localStorage", e);
+    }
 
     // Initial render
     renderLibrary();

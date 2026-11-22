@@ -26,10 +26,10 @@ SRC_DIR = BASE_DIR / "src"
 STAGING_DIR = BASE_DIR / "staging_cache"
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
-# Service URLs
-RCLONE_URL = "http://127.0.0.1:5572"
-ANYMD_URL = "http://127.0.0.1:3050"
-LIBRMANAGE_URL = "http://127.0.0.1:5820"
+# Service URLs (Supports local 127.0.0.1, Termux on Android, or another local network host)
+RCLONE_URL = os.environ.get("RCLONE_RCD_URL", "http://127.0.0.1:5572").rstrip("/")
+ANYMD_URL = os.environ.get("ANYMD_DAEMON_URL", "http://127.0.0.1:3050").rstrip("/")
+LIBRMANAGE_URL = os.environ.get("LIBRMANAGE_URL", "http://127.0.0.1:5820").rstrip("/")
 
 os.environ["KITTLIBR_STAGING_DIR"] = str(STAGING_DIR)
 os.environ["ANYMD_DAEMON_URL"] = ANYMD_URL
@@ -105,13 +105,20 @@ def start_rclone_rcd():
         print("  ⚠️ rclone binary not on system PATH. Proceeding with local disk staging fallback.")
         return
 
-    # Start authenticated loopback-only rcd (never on shared interfaces, no --rc-no-auth, no --rc-serve)
-    print("  Starting authenticated loopback rclone rcd...")
+    # Start authenticated loopback-only rcd tuned for high transfer throughput without FUSE drive mounts
+    print("  Starting authenticated loopback rclone rcd with transfer performance tuning...")
     cmd = [
         "rclone", "rcd",
         "--rc-addr=127.0.0.1:5572",
         f"--rc-user={RCLONE_USER}",
-        f"--rc-pass={RCLONE_PASS}"
+        f"--rc-pass={RCLONE_PASS}",
+        "--transfers=4",
+        "--checkers=8",
+        "--dir-cache-time=5m",
+        "--buffer-size=32M",
+        "--vfs-cache-mode=writes",
+        "--timeout=30s",
+        "--contimeout=10s"
     ]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

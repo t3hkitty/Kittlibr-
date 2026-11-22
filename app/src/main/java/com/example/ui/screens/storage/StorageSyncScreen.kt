@@ -50,10 +50,12 @@ fun StorageSyncScreen(
     var showRcloneWizard by remember { mutableStateOf(false) }
     var rcloneRemoteName by remember { mutableStateOf("kittlibr_remote") }
     var rcloneStorageType by remember { mutableStateOf("webdav") }
+    var rcloneFolderRole by remember { mutableStateOf("library") } // "library", "backup", "custom"
+    var rcloneCustomPath by remember { mutableStateOf("my_books") }
     var rcloneEndpoint by remember { mutableStateOf("https://dav.example.com/") }
     var rcloneRemotes by remember {
         mutableStateOf(
-            listOf("kittlibr_remote (webdav: https://dav.example.com/)")
+            listOf("kittlibr_remote (webdav: https://dav.example.com/ - library [target: kittlibr_remote:library])")
         )
     }
 
@@ -503,15 +505,48 @@ fun StorageSyncScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+                    Text("Target Folder Purpose / Role:", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("library", "backup", "custom").forEach { role ->
+                            FilterChip(
+                                selected = rcloneFolderRole == role,
+                                onClick = { rcloneFolderRole = role },
+                                label = { Text(when (role) {
+                                    "library" -> "📚 Library"
+                                    "backup" -> "💾 Backup"
+                                    else -> "⚙️ Custom"
+                                }) }
+                            )
+                        }
+                    }
+                    if (rcloneFolderRole == "custom") {
+                        OutlinedTextField(
+                            value = rcloneCustomPath,
+                            onValueChange = { rcloneCustomPath = it },
+                            label = { Text("Custom Subpath (e.g. books/novels)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    } else {
+                        val defaultSub = if (rcloneFolderRole == "library") "library" else "backups/kittlibr"
+                        Text("Resolved Subpath: $defaultSub", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (rcloneRemoteName.isNotBlank()) {
-                            val newRemote = "$rcloneRemoteName ($rcloneStorageType: $rcloneEndpoint)"
+                            val cleanBase = rcloneRemoteName.trim().removeSuffix(":")
+                            val subpath = when (rcloneFolderRole) {
+                                "library" -> "library"
+                                "backup" -> "backups/kittlibr"
+                                else -> rcloneCustomPath.trim().trim('/').replace('\\', '/')
+                            }
+                            val targetPath = if (subpath.isNotBlank()) "$cleanBase:$subpath" else "$cleanBase:"
+                            val newRemote = "$rcloneRemoteName ($rcloneStorageType: $rcloneEndpoint - $rcloneFolderRole [target: $targetPath])"
                             rcloneRemotes = rcloneRemotes + newRemote
-                            Toast.makeText(context, "Successfully created rclone remote '$rcloneRemoteName'!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Successfully created rclone remote '$rcloneRemoteName' for $rcloneFolderRole!", Toast.LENGTH_LONG).show()
                             showRcloneWizard = false
                         }
                     }

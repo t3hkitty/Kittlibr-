@@ -392,8 +392,61 @@
             <hr style="border: 0; border-top: 1px solid var(--surface-variant); margin: 2rem 0;">
 
             <div class="card-title">⚡ Rclone Remote Setup Wizard (`rclone config`)</div>
-            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure Google Drive, Dropbox, WebDAV, or S3 remotes.</p>
-            <button class="btn btn-outline" onclick="alert('Rclone remote setup wizard launched!')">Launch Rclone Config</button>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure WebDAV, Google Drive, Dropbox, or S3 remotes and select folder roles (library, backup, or custom path).</p>
+            
+            <div style="background: var(--surface-variant); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label>Remote Name</label>
+                    <input type="text" id="rclone-remote-name" class="form-control" value="kittlibr_webdav" placeholder="e.g. torbox_webdav, kittlibr_remote">
+                </div>
+                <div class="form-group">
+                    <label>Storage Type</label>
+                    <select id="rclone-storage-type" class="form-control">
+                        <option value="webdav" selected>WebDAV</option>
+                        <option value="drive">Google Drive</option>
+                        <option value="dropbox">Dropbox</option>
+                        <option value="s3">Amazon S3</option>
+                        <option value="onedrive">OneDrive</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Endpoint / Server URL</label>
+                    <input type="text" id="rclone-endpoint" class="form-control" value="https://dav.example.com/" placeholder="https://dav.example.com/">
+                </div>
+                <div class="form-group">
+                    <label>Target Folder Purpose / Role</label>
+                    <select id="rclone-role" class="form-control" onchange="toggleRcloneCustomPath()">
+                        <option value="library" selected>📚 Library (subpath: library)</option>
+                        <option value="backup">💾 Backup (subpath: backups/kittlibr)</option>
+                        <option value="custom">⚙️ Custom Subpath</option>
+                    </select>
+                </div>
+                <div class="form-group" id="rclone-custom-path-group" style="display: none;">
+                    <label>Custom Remote Subpath</label>
+                    <input type="text" id="rclone-custom-path" class="form-control" placeholder="e.g. books/novels">
+                </div>
+                <div class="form-group" style="display: flex; gap: 1rem;">
+                    <div style="flex: 1;">
+                        <label>Username (optional)</label>
+                        <input type="text" id="rclone-user" class="form-control" placeholder="User">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Password (optional)</label>
+                        <input type="password" id="rclone-pass" class="form-control" placeholder="Password">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem;">
+                    <button class="btn" onclick="saveRcloneRemote()">+ Add Rclone Remote</button>
+                    <span id="rclone-target-preview" style="font-size: 0.85rem; color: var(--text-secondary);">Target: kittlibr_webdav:library</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Configured Rclone Remotes:</label>
+                <div id="rclone-remotes-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <!-- Configured remotes populated via JS -->
+                </div>
+            </div>
         </div>
     </section>
 
@@ -570,8 +623,126 @@
     const savedTheme = localStorage.getItem('kittlibr_theme');
     if (savedTheme) setTheme(savedTheme);
 
+    // Rclone Remote Setup Wizard State & Logic
+    const DEFAULT_ROLE_PATHS = {
+        library: "library",
+        backup: "backups/kittlibr"
+    };
+
+    let configuredRemotes = [
+        {
+            remoteName: "kittlibr_webdav",
+            type: "webdav",
+            endpoint: "https://dav.example.com/",
+            role: "library",
+            subpath: "library",
+            target: "kittlibr_webdav:library"
+        }
+    ];
+
+    function sanitizeSubpath(raw) {
+        return (raw || "")
+            .trim()
+            .replace(/^\/+|\/+$/g, "")
+            .replace(/\\/g, "/");
+    }
+
+    function resolveWebDavTarget(config) {
+        const baseRemote = (config.remoteName || "").trim().replace(/:+$/, "");
+        const subpath = config.role === "custom"
+            ? sanitizeSubpath(config.customPath || "")
+            : DEFAULT_ROLE_PATHS[config.role] || "";
+        const rcloneRemotePath = subpath ? `${baseRemote}:${subpath}` : `${baseRemote}:`;
+        return { subpath, rcloneRemotePath };
+    }
+
+    function toggleRcloneCustomPath() {
+        const role = document.getElementById('rclone-role').value;
+        const customGroup = document.getElementById('rclone-custom-path-group');
+        customGroup.style.display = role === 'custom' ? 'block' : 'none';
+        updateTargetPreview();
+    }
+
+    function updateTargetPreview() {
+        const remoteName = document.getElementById('rclone-remote-name').value;
+        const role = document.getElementById('rclone-role').value;
+        const customPath = document.getElementById('rclone-custom-path').value;
+        const { rcloneRemotePath } = resolveWebDavTarget({
+            remoteName,
+            role,
+            customPath
+        });
+        const preview = document.getElementById('rclone-target-preview');
+        if (preview) {
+            preview.innerText = `Target: ${rcloneRemotePath}`;
+        }
+    }
+
+    function renderRcloneRemotes() {
+        const container = document.getElementById('rclone-remotes-list');
+        if (!container) return;
+        if (configuredRemotes.length === 0) {
+            container.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-secondary);">No remotes configured yet.</span>`;
+            return;
+        }
+        container.innerHTML = configuredRemotes.map((r, i) => `
+            <div style="background: var(--surface-color); border: 1px solid var(--surface-variant); padding: 0.75rem 1rem; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>${r.remoteName}</strong> (${r.type})
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">
+                        Role: <code>${r.role}</code> • Target: <code>${r.target}</code>
+                    </div>
+                </div>
+                <button class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="deleteRemote(${i})">Remove</button>
+            </div>
+        `).join('');
+    }
+
+    function deleteRemote(index) {
+        configuredRemotes.splice(index, 1);
+        renderRcloneRemotes();
+    }
+
+    function saveRcloneRemote() {
+        const remoteName = document.getElementById('rclone-remote-name').value.trim();
+        const type = document.getElementById('rclone-storage-type').value;
+        const endpoint = document.getElementById('rclone-endpoint').value.trim();
+        const role = document.getElementById('rclone-role').value;
+        const customPath = document.getElementById('rclone-custom-path').value;
+
+        if (!remoteName) {
+            alert("Please provide a remote name!");
+            return;
+        }
+
+        const { subpath, rcloneRemotePath } = resolveWebDavTarget({
+            remoteName,
+            role,
+            customPath
+        });
+
+        configuredRemotes.push({
+            remoteName,
+            type,
+            endpoint,
+            role,
+            subpath,
+            target: rcloneRemotePath
+        });
+
+        renderRcloneRemotes();
+        alert(`Successfully added rclone remote '${remoteName}' for '${role}' [${rcloneRemotePath}]!`);
+    }
+
+    // Bind preview listener
+    const remoteInput = document.getElementById('rclone-remote-name');
+    const customInput = document.getElementById('rclone-custom-path');
+    if (remoteInput) remoteInput.addEventListener('input', updateTargetPreview);
+    if (customInput) customInput.addEventListener('input', updateTargetPreview);
+
     // Initial render
     renderLibrary();
+    renderRcloneRemotes();
 </script>
 </body>
 </html>

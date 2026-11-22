@@ -46,7 +46,8 @@ enum class LibrarySortOption(val label: String) {
 fun LibraryScreen(
     viewModel: LibraryViewModel,
     onBookClick: (Long) -> Unit,
-    onAddClick: () -> Unit
+    onAddClick: () -> Unit,
+    onOpenDrawer: () -> Unit
 ) {
     val context = LocalContext.current
     val books by viewModel.books.collectAsState()
@@ -167,6 +168,11 @@ fun LibraryScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
                     }
                 },
                 actions = {

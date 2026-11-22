@@ -27,13 +27,9 @@ import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.stats.StatsScreen
 import com.example.ui.screens.storage.StorageSyncScreen
 import com.example.ui.theme.AppThemeStyle
+import kotlinx.coroutines.launch
 
-data class NavCategory(
-    val name: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val panels: List<Pair<String, Int>> // title -> panelIndex
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppScaffold(
     libraryViewModel: LibraryViewModel,
@@ -46,51 +42,105 @@ fun AppScaffold(
     onBookClick: (Long) -> Unit
 ) {
     val context = LocalContext.current
-    var selectedCategoryIndex by remember { mutableIntStateOf(0) }
-    var selectedPanelIndex by remember { mutableIntStateOf(0) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
 
-    // Pinning state for home screen replacement per category
-    var pinnedPanels by remember { mutableStateOf(mapOf(0 to 0, 1 to 1, 2 to 4)) } // category -> pinned panelIndex
+    var activeScreenIndex by remember { mutableIntStateOf(0) } // 0: Library, 1: Discover, 2: LibrManage, 3: Acquire, 4: Stats, 5: Storage, 6: Extensions, 7: Settings
 
     val pendingCount by libraryViewModel.pendingMetadataCount.collectAsState()
     val failedCount by libraryViewModel.failedLookupCount.collectAsState()
 
-    val categories = listOf(
-        NavCategory(
-            name = "Library & Hub",
-            icon = Icons.Default.Book,
-            panels = listOf(
-                Pair("Library", 0),
-                Pair("LibrManage", 2),
-                Pair("Storage", 5)
-            )
-        ),
-        NavCategory(
-            name = "Discovery & Acquisition",
-            icon = Icons.Default.Explore,
-            panels = listOf(
-                Pair("Discover", 1),
-                Pair("Acquire", 3),
-                Pair("Extensions", 6)
-            )
-        ),
-        NavCategory(
-            name = "Insights & Settings",
-            icon = Icons.Default.BarChart,
-            panels = listOf(
-                Pair("Stats", 4),
-                Pair("Settings", 7)
-            )
-        )
-    )
-
-    val currentCategory = categories[selectedCategoryIndex]
-    val activePanelIndex = pinnedPanels[selectedCategoryIndex] ?: currentCategory.panels.first().second
-
-    Scaffold(
-        bottomBar = {
-            Column {
-                // Global Background Process Notification Bar
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Kittlibr Navigation",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Divider()
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Book, contentDescription = null) },
+                    label = { Text("Library & Catalog") },
+                    selected = activeScreenIndex == 0,
+                    onClick = {
+                        activeScreenIndex = 0
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Explore, contentDescription = null) },
+                    label = { Text("Discovery & Rec Lists") },
+                    selected = activeScreenIndex == 1,
+                    onClick = {
+                        activeScreenIndex = 1
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    label = { Text("LibrManage & Smart Shelves") },
+                    selected = activeScreenIndex == 2,
+                    onClick = {
+                        activeScreenIndex = 2
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.AddCircle, contentDescription = null) },
+                    label = { Text("Acquisition & LNReader") },
+                    selected = activeScreenIndex == 3,
+                    onClick = {
+                        activeScreenIndex = 3
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+                    label = { Text("Stats & Achievements") },
+                    selected = activeScreenIndex == 4,
+                    onClick = {
+                        activeScreenIndex = 4
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Storage, contentDescription = null) },
+                    label = { Text("Storage & Cloud Sync") },
+                    selected = activeScreenIndex == 5,
+                    onClick = {
+                        activeScreenIndex = 5
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Extension, contentDescription = null) },
+                    label = { Text("Extensions & Repos") },
+                    selected = activeScreenIndex == 6,
+                    onClick = {
+                        activeScreenIndex = 6
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text("Settings & Themes") },
+                    selected = activeScreenIndex == 7,
+                    onClick = {
+                        activeScreenIndex = 7
+                        coroutineScope.launch { drawerState.close() }
+                    }
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            bottomBar = {
+                // Global Background Process Notification Bar (if pending)
                 if (pendingCount > 0 || failedCount > 0) {
                     Surface(
                         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -99,7 +149,7 @@ fun AppScaffold(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -109,167 +159,63 @@ fun AppScaffold(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(14.dp),
                                     strokeWidth = 2.dp,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
-                                Column {
-                                    Text(
-                                        text = "Metadata Import: $pendingCount books pending synchronization",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                    if (failedCount > 0) {
-                                        Text(
-                                            text = "$failedCount lookups failed. Manual review needed.",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = "Metadata Sync: $pendingCount remaining",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
                             }
-
-                            if (failedCount > 0 || pendingCount > 0) {
+                            if (failedCount > 0) {
                                 TextButton(
                                     onClick = {
-                                        selectedCategoryIndex = 0
-                                        pinnedPanels = pinnedPanels + (0 to 0)
+                                        activeScreenIndex = 0
                                         libraryViewModel.setDynamicLibrary(
                                             libraryViewModel.smartShelves.value.find { it.name.contains("Missing Metadata", ignoreCase = true) }
                                                 ?: libraryViewModel.presetDynamicLibraries.find { it.missingMetadataOnly }
                                         )
                                     }
                                 ) {
-                                    Text("Failed Lookups", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                    Text("View Failed ($failedCount)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
-                            }
-                        }
-                    }
-                }
-
-                // Two-Row Categorized Navigation Bar
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    tonalElevation = 8.dp
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        // Row 1: Categories
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            categories.forEachIndexed { catIndex, cat ->
-                                val isSelected = selectedCategoryIndex == catIndex
-                                TextButton(
-                                    onClick = {
-                                        selectedCategoryIndex = catIndex
-                                        // default to pinned panel for this category
-                                        selectedPanelIndex = pinnedPanels[catIndex] ?: cat.panels.first().second
-                                    }
-                                ) {
-                                    Icon(cat.icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        cat.name,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                        // Row 2: Dynamic Sub-panels for the selected Category + Pin Home Screen Button
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                currentCategory.panels.forEach { (panelTitle, panelIndex) ->
-                                    val isPanelSelected = activePanelIndex == panelIndex
-                                    val isPinned = (pinnedPanels[selectedCategoryIndex] == panelIndex)
-                                    
-                                    FilterChip(
-                                        selected = isPanelSelected,
-                                        onClick = { selectedPanelIndex = panelIndex },
-                                        label = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (isPinned) {
-                                                    Icon(Icons.Default.PushPin, contentDescription = "Pinned", modifier = Modifier.size(12.dp))
-                                                    Spacer(modifier = Modifier.width(2.dp))
-                                                }
-                                                Text(panelTitle, style = MaterialTheme.typography.labelSmall)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-
-                            // Pin / Set as Home Screen Button
-                            IconButton(
-                                onClick = {
-                                    pinnedPanels = pinnedPanels + (selectedCategoryIndex to activePanelIndex)
-                                    Toast.makeText(context, "Pinned current panel as default home screen for ${currentCategory.name}!", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.BookmarkAdded,
-                                    contentDescription = "Pin as category home",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
                             }
                         }
                     }
                 }
             }
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (activePanelIndex) {
-                0 -> LibraryScreen(
-                    viewModel = libraryViewModel,
-                    onBookClick = onBookClick,
-                    onAddClick = {
-                        selectedCategoryIndex = 1
-                        selectedPanelIndex = 3
-                    }
-                )
-                1 -> DiscoveryScreen(viewModel = discoveryViewModel)
-                2 -> CalibreScreen(viewModel = libraryViewModel)
-                3 -> AcquisitionScreen(
-                    libraryViewModel = libraryViewModel,
-                    onBack = {
-                        selectedCategoryIndex = 0
-                        selectedPanelIndex = 0
-                    }
-                )
-                4 -> StatsScreen(libraryRepository = libraryRepository)
-                5 -> StorageSyncScreen(webDavRepository = webDavRepository)
-                6 -> ExtensionManagerScreen()
-                7 -> SettingsScreen(
-                    libraryViewModel = libraryViewModel,
-                    currentAppTheme = currentAppTheme,
-                    onThemeChange = onThemeChange,
-                    onOpenThemeConfig = onOpenThemeConfig
-                )
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                when (activeScreenIndex) {
+                    0 -> LibraryScreen(
+                        viewModel = libraryViewModel,
+                        onBookClick = onBookClick,
+                        onAddClick = { activeScreenIndex = 3 },
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                    )
+                    1 -> DiscoveryScreen(viewModel = discoveryViewModel)
+                    2 -> CalibreScreen(viewModel = libraryViewModel)
+                    3 -> AcquisitionScreen(
+                        libraryViewModel = libraryViewModel,
+                        onBack = { activeScreenIndex = 0 }
+                    )
+                    4 -> StatsScreen(libraryRepository = libraryRepository)
+                    5 -> StorageSyncScreen(webDavRepository = webDavRepository)
+                    6 -> ExtensionManagerScreen()
+                    7 -> SettingsScreen(
+                        libraryViewModel = libraryViewModel,
+                        currentAppTheme = currentAppTheme,
+                        onThemeChange = onThemeChange,
+                        onOpenThemeConfig = onOpenThemeConfig
+                    )
+                }
             }
         }
     }

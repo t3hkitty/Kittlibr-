@@ -35,7 +35,9 @@ data class ExtensionManifest(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExtensionManagerScreen() {
+fun ExtensionManagerScreen(
+    onOpenDrawer: () -> Unit
+) {
     val context = LocalContext.current
 
     var extensionRepos by remember {
@@ -164,6 +166,11 @@ fun ExtensionManagerScreen() {
         topBar = {
             TopAppBar(
                 title = { Text("Extension Manager & Repos", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 actions = {
                     IconButton(onClick = { showAddExtensionDialog = true }) {
@@ -184,6 +191,45 @@ fun ExtensionManagerScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Prominent Top Action Row: + Add Extension & Import (.json / .zip)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { showAddExtensionDialog = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Add Extension", style = MaterialTheme.typography.labelMedium)
+                }
+                Button(
+                    onClick = { importExtensionLauncher.launch(arrayOf("application/json", "application/zip", "*/*")) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
+                ) {
+                    Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Import (.json / .zip)", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            // Horizontal Category Chips (Only filter pills scroll horizontally)
+            ScrollableTabRow(
+                selectedTabIndex = categories.indexOf(selectedCategoryFilter),
+                edgePadding = 0.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                categories.forEach { cat ->
+                    Tab(
+                        selected = selectedCategoryFilter == cat,
+                        onClick = { selectedCategoryFilter = cat },
+                        text = { Text(cat, style = MaterialTheme.typography.labelMedium) }
+                    )
+                }
+            }
+
             // Community Disclaimer Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -200,52 +246,11 @@ fun ExtensionManagerScreen() {
                 }
             }
 
-            // Repositories Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Active Extension Repositories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        }
-                        Button(onClick = { showAddRepoDialog = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Repo")
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(extensionRepos.joinToString("\n") { "• $it" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-
-            // Category Filter Chips at Top
-            ScrollableTabRow(
-                selectedTabIndex = categories.indexOf(selectedCategoryFilter),
-                edgePadding = 0.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                categories.forEach { cat ->
-                    Tab(
-                        selected = selectedCategoryFilter == cat,
-                        onClick = { selectedCategoryFilter = cat },
-                        text = { Text(cat, style = MaterialTheme.typography.labelMedium) }
-                    )
-                }
-            }
-
             Text("Extensions (${filteredExtensions.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
 
+            // Full-Width Vertical LazyColumn for Extensions
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filteredExtensions, key = { it.id }) { ext ->
@@ -307,26 +312,25 @@ fun ExtensionManagerScreen() {
                                         }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (ext.isEnabled) "Enabled (Active)" else "Disabled", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    Text(if (ext.isEnabled) "Enabled" else "Disabled", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 }
 
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     OutlinedButton(
                                         onClick = { configuringExtension = ext }
                                     ) {
                                         Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Configure")
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text("Config", style = MaterialTheme.typography.labelSmall)
                                     }
-                                    Button(
+                                    OutlinedButton(
                                         onClick = {
-                                            ext.isInstalled = !ext.isInstalled
-                                            availableExtensions = availableExtensions.toList()
-                                            Toast.makeText(context, if (ext.isInstalled) "Successfully installed ${ext.name}" else "Uninstalled ${ext.name}", Toast.LENGTH_SHORT).show()
+                                            availableExtensions = availableExtensions.filter { it.id != ext.id }
+                                            Toast.makeText(context, "Deleted extension ${ext.name}", Toast.LENGTH_SHORT).show()
                                         },
-                                        colors = if (ext.isInstalled) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant) else ButtonDefaults.buttonColors()
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                                     ) {
-                                        Text(if (ext.isInstalled) "Installed" else "Install")
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
@@ -381,44 +385,6 @@ fun ExtensionManagerScreen() {
             },
             dismissButton = {
                 TextButton(onClick = { showAddExtensionDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
-    // Add Repo Dialog
-    if (showAddRepoDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddRepoDialog = false },
-            title = { Text("Add Extension Repository") },
-            text = {
-                Column {
-                    Text("Enter raw JSON repository endpoint URL.", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = newRepoUrlInput,
-                        onValueChange = { newRepoUrlInput = it },
-                        label = { Text("Repository JSON URL") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newRepoUrlInput.isNotBlank()) {
-                            extensionRepos = extensionRepos + newRepoUrlInput
-                            Toast.makeText(context, "Repository added successfully!", Toast.LENGTH_SHORT).show()
-                            newRepoUrlInput = ""
-                            showAddRepoDialog = false
-                        }
-                    }
-                ) {
-                    Text("Add Repo")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddRepoDialog = false }) { Text("Cancel") }
             }
         )
     }

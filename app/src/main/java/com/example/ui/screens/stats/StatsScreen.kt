@@ -20,7 +20,10 @@ import com.example.data.repository.LibraryRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(libraryRepository: LibraryRepository) {
+fun StatsScreen(
+    libraryRepository: LibraryRepository,
+    onOpenDrawer: () -> Unit
+) {
     val context = LocalContext.current
     val allBooks by libraryRepository.allBooks.collectAsState(initial = emptyList())
 
@@ -48,6 +51,11 @@ fun StatsScreen(libraryRepository: LibraryRepository) {
         topBar = {
             TopAppBar(
                 title = { Text("Reading Stats & Projections", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }

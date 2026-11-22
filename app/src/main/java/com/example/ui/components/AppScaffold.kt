@@ -198,22 +198,39 @@ fun AppScaffold(
                         viewModel = libraryViewModel,
                         onBookClick = onBookClick,
                         onAddClick = { activeScreenIndex = 3 },
+                        onSelectFolderKey = { activeScreenIndex = 5 },
                         onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                     )
-                    1 -> DiscoveryScreen(viewModel = discoveryViewModel)
-                    2 -> CalibreScreen(viewModel = libraryViewModel)
+                    1 -> DiscoveryScreen(
+                        viewModel = discoveryViewModel,
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                    )
+                    2 -> CalibreScreen(
+                        viewModel = libraryViewModel,
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                    )
                     3 -> AcquisitionScreen(
                         libraryViewModel = libraryViewModel,
-                        onBack = { activeScreenIndex = 0 }
+                        onBack = { activeScreenIndex = 0 },
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                     )
-                    4 -> StatsScreen(libraryRepository = libraryRepository)
-                    5 -> StorageSyncScreen(webDavRepository = webDavRepository)
-                    6 -> ExtensionManagerScreen()
+                    4 -> StatsScreen(
+                        libraryRepository = libraryRepository,
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                    )
+                    5 -> StorageSyncScreen(
+                        webDavRepository = webDavRepository,
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                    )
+                    6 -> ExtensionManagerScreen(
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
+                    )
                     7 -> SettingsScreen(
                         libraryViewModel = libraryViewModel,
                         currentAppTheme = currentAppTheme,
                         onThemeChange = onThemeChange,
-                        onOpenThemeConfig = onOpenThemeConfig
+                        onOpenThemeConfig = onOpenThemeConfig,
+                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                     )
                 }
             }

@@ -47,6 +47,7 @@ fun LibraryScreen(
     viewModel: LibraryViewModel,
     onBookClick: (Long) -> Unit,
     onAddClick: () -> Unit,
+    onSelectFolderKey: () -> Unit,
     onOpenDrawer: () -> Unit
 ) {
     val context = LocalContext.current
@@ -341,25 +342,37 @@ fun LibraryScreen(
 
             if (filteredBooks.isEmpty()) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(
                             Icons.Default.MenuBook,
                             contentDescription = null,
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.secondary
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            "No books match this view or dynamic filter",
+                            "Your library is empty. Import your first ebook or scan a library folder!",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = onAddClick) {
-                            Text("Acquire Books or Import")
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Button(
+                            onClick = onAddClick,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("+ Import .epub or .md Book")
+                        }
+                        OutlinedButton(
+                            onClick = onSelectFolderKey,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("+ Select Library Folder")
                         }
                     }
                 }

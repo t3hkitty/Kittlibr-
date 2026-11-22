@@ -28,7 +28,8 @@ fun SettingsScreen(
     libraryViewModel: LibraryViewModel,
     currentAppTheme: AppThemeStyle,
     onThemeChange: (AppThemeStyle) -> Unit,
-    onOpenThemeConfig: () -> Unit
+    onOpenThemeConfig: () -> Unit,
+    onOpenDrawer: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -45,6 +46,11 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Settings & Preferences", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }

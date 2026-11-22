@@ -23,7 +23,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalibreScreen(viewModel: LibraryViewModel) {
+fun CalibreScreen(
+    viewModel: LibraryViewModel,
+    onOpenDrawer: () -> Unit
+) {
     val context = LocalContext.current
     val books by viewModel.books.collectAsState()
     val customShelves by viewModel.customShelves.collectAsState()
@@ -64,6 +67,11 @@ fun CalibreScreen(viewModel: LibraryViewModel) {
         topBar = {
             TopAppBar(
                 title = { Text("LibrManage: Metadata & Source Seeking Hub", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }

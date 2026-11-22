@@ -45,7 +45,10 @@ data class NotificationHistoryItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiscoveryScreen(viewModel: DiscoveryViewModel) {
+fun DiscoveryScreen(
+    viewModel: DiscoveryViewModel,
+    onOpenDrawer: () -> Unit
+) {
     val context = LocalContext.current
     val recommendations by viewModel.recommendations.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -135,6 +138,11 @@ fun DiscoveryScreen(viewModel: DiscoveryViewModel) {
             Column {
                 TopAppBar(
                     title = { Text("Story Discovery & Subscriptions Hub", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 )
                 ScrollableTabRow(

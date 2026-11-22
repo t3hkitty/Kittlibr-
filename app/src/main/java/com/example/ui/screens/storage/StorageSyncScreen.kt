@@ -32,7 +32,10 @@ data class StorageFolderInfo(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StorageSyncScreen(webDavRepository: WebDavRepository) {
+fun StorageSyncScreen(
+    webDavRepository: WebDavRepository,
+    onOpenDrawer: () -> Unit
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -115,6 +118,11 @@ fun StorageSyncScreen(webDavRepository: WebDavRepository) {
         topBar = {
             TopAppBar(
                 title = { Text("Storage, Document Provider & Cloud Sync", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Navigation Drawer")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             )
         }

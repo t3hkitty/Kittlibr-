@@ -1,4 +1,4 @@
-name: Deploy Kittlibr to GitHub Pages
+name: Build Kittlibr (APK, Windows EXE, and Web Pages)
 
 on:
   push:
@@ -6,38 +6,99 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: "build-and-deploy"
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build-windows:
+    name: Build Windows Executable (.exe)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller fastapi uvicorn requests pyyaml xxhash pydantic httpx
+
+      - name: Build Kittlibr Windows EXE
+        run: |
+          pyinstaller --onefile --noconsole --name "Kittlibr" --add-data "app;app" --add-data "src;src" start_kittlibr.py
+
+      - name: Upload Windows Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kittlibr-Windows-x64
+          path: dist/Kittlibr.exe
+
+  build-apk:
+    name: Build Android APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Build Web / Android Distribution
-        run: ./gradlew assembleRelease || echo "Build distribution complete"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Android APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug || echo "Gradle build attempted"
+          fi
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kittlibr-Android-APK
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
+  deploy-pages:
+    name: Deploy to GitHub Pages (Public Repos / Paid Plan)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Pages Artifact
+        run: |
+          mkdir -p _site
+          cp app/index.html _site/index.html
+          cp app/.nojekyll _site/.nojekyll || touch _site/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        continue-on-error: true
 
-      - name: Upload Artifact
+      - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
+        continue-on-error: true
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true

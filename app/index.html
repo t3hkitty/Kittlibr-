@@ -1309,6 +1309,29 @@
 </footer>
 
 <script>
+    // Utility Helpers
+    function escapeHtml(str) {
+        if (!str && str !== 0) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function handleLocalDirectorySelected(event) {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) return;
+        const subpath = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : '';
+        if (subpath) {
+            saveCurrentTargetSubpath(subpath);
+            const input = document.getElementById('explorer-target-subpath');
+            if (input) input.value = subpath;
+        }
+        handleLocalFilesSelected(event);
+    }
+
     // State & Persistent Storage Keys
     let clickAction = localStorage.getItem('kittlibr_click_action') || 'more_info';
     let currentViewMode = localStorage.getItem('kittlibr_view_mode') || 'list';

@@ -191,6 +191,18 @@ def start_web_server():
 
 
 def print_status_banner():
+    # Check Google OAuth token status if present
+    token_note = "No token captured (run python -m src.auth.google_oauth_cli)"
+    try:
+        from src.auth.google_oauth import GoogleOAuthManager
+        mgr = GoogleOAuthManager()
+        st = mgr.get_scope_status()
+        if st["has_token"]:
+            active_mods = [k for k, v in st["presets"].items() if v["authorized"]]
+            token_note = f"Active ({len(active_mods)} modules: {', '.join(active_mods) or 'base'})"
+    except Exception:
+        pass
+
     banner = f"""
 ===================================================================
 KITTLIBR UNIFIED SERVICE TOPOLOGY READY
@@ -198,7 +210,8 @@ KITTLIBR UNIFIED SERVICE TOPOLOGY READY
   1. [Rclone Daemon]  : {RCLONE_URL} (Non-FUSE JSON-RPC)
   2. [AnyMD Daemon]   : {ANYMD_URL} (Sharded YAML Rollup & Sidecars)
   3. [librmanage]     : {LIBRMANAGE_URL} (Calibre Headless & Extensions)
-  4. [Active Staging] : {STAGING_DIR}
+  4. [Google OAuth]   : {token_note}
+  5. [Active Staging] : {STAGING_DIR}
 ===================================================================
 All legacy Koodo IndexedDB, raw FBReader, and direct FUSE drive letter
 paths have been severed and replaced with loopback JSON contracts.

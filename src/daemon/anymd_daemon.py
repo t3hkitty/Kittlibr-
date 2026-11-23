@@ -16,6 +16,7 @@ import os
 import sys
 import tempfile
 import hashlib
+import json
 
 try:
     import xxhash
@@ -32,6 +33,18 @@ except ImportError:
     YAML_DUMPER = yaml.SafeDumper
 
 import requests
+
+# Add project root to sys.path to allow src.auth imports
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from src.auth.google_oauth import (
+    GoogleOAuthManager,
+    SCOPE_PRESETS,
+    resolve_scopes,
+    get_token_storage_path
+)
 
 app = FastAPI(
     title="AnyMD Universal Loopback Daemon",
@@ -234,7 +247,95 @@ def get_api_status(remote: Optional[str] = None, path: Optional[str] = None):
         res["queried_remote"] = remote
     if path is not None:
         res["queried_path"] = path
+
+    # Include Google OAuth token bundle summary
+    oauth_mgr = GoogleOAuthManager()
+    token_status = oauth_mgr.get_scope_status()
+    res["oauth_status"] = {
+        "has_token": token_status["has_token"],
+        "token_path": token_status["token_path"],
+        "expiry": token_status["expiry"],
+        "active_modules": [k for k, v in token_status["presets"].items() if v["authorized"]]
+    }
     return res
+
+
+@app.get("/api/auth/google/status")
+def get_google_auth_status():
+    """Returns detailed Google OAuth token bundle, expiry, and scope module audits."""
+    oauth_mgr = GoogleOAuthManager()
+    return oauth_mgr.get_scope_status()
+
+
+@app.post("/api/auth/google/refresh")
+def refresh_google_auth_token():
+    """Forces proactive token refresh using grant_type=refresh_token rotation."""
+    oauth_mgr = GoogleOAuthManager()
+    try:
+        updated = oauth_mgr.refresh_access_token(force=True)
+        return {
+            "success": True,
+            "expiry": updated.get("expiry"),
+            "token_type": updated.get("token_type"),
+            "updated_at": updated.get("updated_at")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Token refresh failed: {str(e)}")
+
+
+@app.get("/api/auth/google/rclone-token")
+def get_rclone_auth_token():
+    """Returns rclone.conf-compatible single-line token = {...} JSON string."""
+    oauth_mgr = GoogleOAuthManager()
+    raw_json = oauth_mgr.get_rclone_token_json()
+    return {
+        "rclone_token_config": f"token = {raw_json}",
+        "token_data": json.loads(raw_json)
+    }
+
+
+class TelemetryIngestRequest(BaseModel):
+    module: str  # 'fitness', 'timeline', 'contacts', 'custom'
+    data: Dict[str, Any]
+    subpath: Optional[str] = "telemetry"
+    filename: Optional[str] = None
+
+
+@app.post("/api/mbb/telemetry/ingest")
+def ingest_mbb_telemetry(req: TelemetryIngestRequest):
+    """
+    Ingests MBB somatic / telemeowtrics telemetry (steps, location, timeline, contacts context)
+    and writes canonical .anymd Markdown/YAML entries directly into the local vault without webhooks.
+    """
+    zettel_id = engine.generate_zettelkasten_id()
+    now_iso = datetime.now().isoformat()
+    filename = req.filename or f"mbb_{req.module}_{zettel_id}.md"
+
+    target_dir = engine.vault_root / req.subpath.strip("/\\")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_file = target_dir / filename
+
+    metadata = {
+        "zettelkasten_id": zettel_id,
+        "title": f"MBB Telemetry - {req.module.title()} ({zettel_id})",
+        "type": "telemetry",
+        "module": req.module,
+        "source": "MBB-telemeowtrics",
+        "created_at": now_iso,
+        "tags": ["telemetry", "mbb", req.module],
+        "telemetry_payload": req.data
+    }
+
+    body = f"# MBB Telemetry Entry ({req.module.upper()})\n\n- **Timestamp:** `{now_iso}`\n- **Module:** `{req.module}`\n- **Serial ID:** `{zettel_id}`\n\n```json\n{json.dumps(req.data, indent=2)}\n```\n"
+
+    engine.atomic_write_yaml(target_file, metadata, body)
+
+    return {
+        "success": True,
+        "zettelkasten_id": zettel_id,
+        "saved_path": str(target_file),
+        "module": req.module
+    }
 
 
 @app.get("/api/zettelkasten/new-id")

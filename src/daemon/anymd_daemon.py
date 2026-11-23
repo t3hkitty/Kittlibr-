@@ -488,6 +488,7 @@ def rclone_scan_import(req: RcloneScanRequest):
     print(f"[kittlibr-anymd][scan] Detected {detected_count} ebook files out of {len(items)} total entries")
 
     generated_sidecars = []
+    imported_books = []
     for idx, item in enumerate(book_items):
         item_path = item.get("Path") or item.get("Name")
         file_name = item.get("Name", os.path.basename(item_path))
@@ -530,6 +531,8 @@ def rclone_scan_import(req: RcloneScanRequest):
             engine.atomic_write_yaml(sidecar_path, meta_dict)
             generated_sidecars.append(str(sidecar_path))
 
+        imported_books.append(meta_dict)
+
         if (idx + 1) % 25 == 0 or (idx + 1) == detected_count:
             print(f"[kittlibr-anymd][progress] Processed {idx + 1}/{detected_count} ebooks (~{max(0, detected_count - idx - 1)} items remaining)")
 
@@ -539,10 +542,11 @@ def rclone_scan_import(req: RcloneScanRequest):
     return {
         "success": True,
         "detected_count": detected_count,
-        "imported_count": len(generated_sidecars),
+        "imported_count": len(generated_sidecars) if req.write_sidecars else len(imported_books),
         "source_remote": remote_fs,
         "source_path": remote_dir,
-        "manifest_updated": req.write_sidecars
+        "manifest_updated": req.write_sidecars,
+        "books": imported_books
     }
 
 

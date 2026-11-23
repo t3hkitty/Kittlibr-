@@ -3694,37 +3694,52 @@
                 if (progressStatus) progressStatus.innerText = `✅ Scan complete! Detected ${data.detected_count} files, imported ${data.imported_count} AnyMD sidecars.`;
                 if (progressEta) progressEta.innerText = '0m left';
                 logReaderDiagnostic('kittlibr-storage', 'scan-complete', `Generated AnyMD sidecars for ${data.imported_count} books on ${fullScanTarget}`, data);
-                alert(`Successfully scanned remote ${fullScanTarget}!\nDetected: ${data.detected_count} files\nImported: ${data.imported_count} AnyMD YAML sidecars.`);
+
+                // Add scanned books to client library
+                let addedToLibrary = 0;
+                if (Array.isArray(data.books) && data.books.length > 0) {
+                    data.books.forEach(b => {
+                        const existingIdx = books.findIndex(ex => (ex.canonicalId && ex.canonicalId === b.canonical_id) || (ex.title === b.title && ex.author === b.author));
+                        const ext = (b.format || 'EPUB').toUpperCase();
+                        const bookObj = {
+                            id: Date.now() + Math.floor(Math.random() * 10000),
+                            canonicalId: b.canonical_id,
+                            md5: b.md5 || "",
+                            title: b.title || "Untitled",
+                            author: b.author || "Unknown Author",
+                            series: b.series || "Remote Vault",
+                            seriesIndex: 1,
+                            tags: Array.isArray(b.tags) ? b.tags : ["WebDAV", ext],
+                            shelf: "To-Read",
+                            snippet: `Imported from ${fullScanTarget}. Format: ${ext}.`,
+                            format: ext,
+                            addedDate: new Date().toISOString().slice(0, 10),
+                            isDemo: false,
+                            content: `# ${b.title}\n\n**Author:** ${b.author}\n**Format:** ${ext}\n**Path:** ${b.relative_path || ''}\n\n*(Remote ebook registered from ${fullScanTarget})*`,
+                            filePath: b.relative_path || b.title
+                        };
+                        if (existingIdx !== -1) {
+                            books[existingIdx] = Object.assign({}, books[existingIdx], bookObj);
+                        } else {
+                            books.unshift(bookObj);
+                            addedToLibrary++;
+                        }
+                    });
+                    saveLocalBooks();
+                    renderLibrary();
+                }
+
+                alert(`Successfully scanned remote ${fullScanTarget}!\nDetected: ${data.detected_count} files\nImported: ${data.imported_count} AnyMD YAML sidecars\nAdded to Library: ${addedToLibrary} books.`);
                 return;
             }
         } catch (e) {
-            logReaderDiagnostic('kittlibr-storage', 'daemon-offline', `AnyMD daemon :3050 not available, using client simulated scan: ${e.message}`);
+            logReaderDiagnostic('kittlibr-storage', 'daemon-offline', `AnyMD daemon :3050 not available: ${e.message}`);
         }
 
-        // Static Client / Offline simulation mode with real-time UI updates
-        const sampleCount = 42;
-        logReaderDiagnostic('kittlibr-storage', 'scan-progress', `Detected ${sampleCount} files via targeted rclone lsf listing on ${fullScanTarget}`);
-        const startTime = Date.now();
-
-        for (let i = 1; i <= sampleCount; i++) {
-            await new Promise(r => setTimeout(r, 40));
-            const pct = Math.round((i / sampleCount) * 100);
-            const elapsed = Date.now() - startTime;
-            const avg = elapsed / i;
-            const remainingSec = Math.round(((sampleCount - i) * avg) / 1000);
-            const timeStr = remainingSec >= 60 ? `~${Math.ceil(remainingSec / 60)}m left` : `~${remainingSec}s left`;
-
-            if (progressBar) progressBar.style.width = `${pct}%`;
-            if (progressStatus) progressStatus.innerText = `detected ${sampleCount} files, importing ${i}/${sampleCount}, ${timeStr}`;
-            if (progressEta) progressEta.innerText = timeStr;
-
-            if (i % 10 === 0 || i === sampleCount) {
-                logReaderDiagnostic('kittlibr-storage', 'sidecar-write', `Imported AnyMD YAML sidecar for item ${i}/${sampleCount} (${timeStr}) on ${fullScanTarget}`);
-            }
-        }
-
-        if (progressStatus) progressStatus.innerText = `✅ Import finished: detected ${sampleCount} files, imported ${sampleCount}/${sampleCount}, 0m left`;
-        alert(`Rclone lsf import completed for ${fullScanTarget}!\nGenerated .anymd YAML sidecars with full rclone metadata for ${sampleCount} files.`);
+        // Daemon offline or browser cross-origin blocked (Honest Status per blueprint)
+        if (progressStatus) progressStatus.innerText = `⚠️ AnyMD Daemon (:3050) is offline or unreachable from browser.`;
+        if (progressEta) progressEta.innerText = 'daemon offline';
+        alert(`Cannot connect to AnyMD Daemon on http://127.0.0.1:3050.\n\nMake sure the local loopback daemon is running:\n  python start_kittlibr.py\n(or python src/daemon/anymd_daemon.py)\n\nRemote: ${fullScanTarget}`);
     }
 
     function saveWebdavDirect() {

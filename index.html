@@ -726,7 +726,7 @@
             <p style="color: var(--text-secondary); margin-bottom: 1rem;">Enable, add, configure, or import community extension manifests (`.json` / `.zip`).</p>
             
             <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
-                <button class="btn" onclick="alert('Add extension dialog opened')">+ Add Extension</button>
+                <button class="btn" onclick="openAddExtensionModal()">+ Add Extension</button>
                 <button class="btn btn-outline" onclick="alert('Import package dialog opened')">Import (.json / .zip)</button>
             </div>
 
@@ -1151,6 +1151,44 @@
         <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
             <button class="btn btn-outline" onclick="closeAddSubscriptionModal()">Cancel</button>
             <button class="btn" onclick="saveNewSubscription()">Save Subscription</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD EXTENSION & REPO MANAGER MODAL -->
+<div id="add-ext-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3 style="color: var(--primary-color);">🧩 Add Extension & Repositories</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeAddExtensionModal()">✕</button>
+        </div>
+        
+        <!-- Repo Management Section -->
+        <div style="background: var(--surface-variant); padding: 1rem; border-radius: 8px; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <label style="font-weight: 600; font-size: 0.85rem; color: var(--primary-color);">Configured Extension Repositories:</label>
+                <button class="btn btn-outline btn-sm" onclick="refreshExtensionDiscovery()">🔄 Scan Repos</button>
+            </div>
+            <div id="repo-list-container" style="display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem;">
+                <!-- Repo items rendered here -->
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="text" id="new-repo-url" class="form-control" style="font-size: 0.85rem; padding: 0.5rem;" placeholder="https://example.com/extensions/index.json">
+                <button class="btn btn-sm" onclick="handleAddRepoUrl()">+ Add Repo</button>
+            </div>
+        </div>
+
+        <!-- Available Discoverable Extensions Section -->
+        <div>
+            <label style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; display: block;">Available Discoverable Extensions:</label>
+            <div id="available-ext-container" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 300px; overflow-y: auto;">
+                <!-- Available extensions or 'all installed' card -->
+            </div>
+            <div id="repo-errors-container" style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--error-color);"></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+            <button class="btn btn-outline btn-sm" onclick="closeAddExtensionModal()">Done</button>
         </div>
     </div>
 </div>
@@ -2324,27 +2362,218 @@
         alert("WebDAV direct credentials tested & saved successfully!");
     }
 
-    // Community Extensions
-    const mockExtensions = [
-        { name: "LibrManage Metadata & Conversion Suite", author: "Kittlibr Core Team", version: "2.4.0", desc: "Comprehensive Calibre-style metadata fetcher, EPUB/MD bidirectional converter, and tag editor." },
-        { name: "LNReader Scraper & Discovery Bridge", author: "Community Contributors", version: "1.8.2", desc: "Connects Kittlibr to community novel scrapers, source seeker engines, and RSS notification listeners." },
-        { name: "WebDAV & Rclone Auto-Mirror Daemon", author: "Vault Sync Guild", version: "3.1.0", desc: "Background continuous folder synchronizer with collision resolution and backup encryption." }
+
+    // Extension Repository Management & Discovery Engine
+    const REPO_STORAGE_KEY = "kittlibr_extension_repos_v1";
+    const EXT_STORAGE_KEY = "kittlibr_installed_extensions_v1";
+    const DEFAULT_REPOS = [
+        "https://t3hkitty.github.io/Kittlibr-/extensions/index.json"
     ];
+
+    let installedExtensions = [
+        { id: "librmanage_suite", name: "LibrManage Metadata & Conversion Suite", author: "Kittlibr Core Team", version: "2.4.0", desc: "Comprehensive Calibre-style metadata fetcher, EPUB/MD bidirectional converter, and tag editor." },
+        { id: "lnreader_bridge", name: "LNReader Scraper & Discovery Bridge", author: "Community Contributors", version: "1.8.2", desc: "Connects Kittlibr to community novel scrapers, source seeker engines, and RSS notification listeners." },
+        { id: "webdav_mirror", name: "WebDAV & Rclone Auto-Mirror Daemon", author: "Vault Sync Guild", version: "3.1.0", desc: "Background continuous folder synchronizer with collision resolution and backup encryption." }
+    ];
+
+    function loadInstalledExtensions() {
+        try {
+            const raw = localStorage.getItem(EXT_STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length) installedExtensions = parsed;
+            }
+        } catch (e) {
+            console.warn("Could not load installed extensions", e);
+        }
+    }
+
+    function saveInstalledExtensions() {
+        try {
+            localStorage.setItem(EXT_STORAGE_KEY, JSON.stringify(installedExtensions));
+        } catch (e) {
+            console.warn("Could not save installed extensions", e);
+        }
+    }
+
+    function loadExtensionRepos() {
+        try {
+            const raw = localStorage.getItem(REPO_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : DEFAULT_REPOS;
+            return Array.isArray(parsed) && parsed.length ? parsed : [...DEFAULT_REPOS];
+        } catch {
+            return [...DEFAULT_REPOS];
+        }
+    }
+
+    function saveExtensionRepos(repos) {
+        localStorage.setItem(REPO_STORAGE_KEY, JSON.stringify([...new Set(repos)]));
+    }
+
+    function normalizeRepoUrl(url) {
+        const trimmed = (url || "").trim();
+        if (!trimmed) return null;
+        try {
+            const parsed = new URL(trimmed);
+            if (!["http:", "https:"].includes(parsed.protocol)) return null;
+            return parsed.toString();
+        } catch {
+            return null;
+        }
+    }
+
+    async function fetchExtensionsFromRepo(repoUrl) {
+        const res = await fetch(repoUrl, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${repoUrl}`);
+        const data = await res.json();
+        return Array.isArray(data) ? data : (Array.isArray(data.extensions) ? data.extensions : []);
+    }
+
+    async function discoverInstallableExtensions(installedIds = new Set()) {
+        const repos = loadExtensionRepos();
+        const available = [];
+        const errors = [];
+
+        for (const repoUrl of repos) {
+            try {
+                const items = await fetchExtensionsFromRepo(repoUrl);
+                for (const ext of items) {
+                    if (!ext || !ext.id) continue;
+                    if (!installedIds.has(ext.id) && !available.some(a => a.id === ext.id)) {
+                        available.push({ ...ext, _repo: repoUrl });
+                    }
+                }
+            } catch (err) {
+                errors.push(`${repoUrl}: ${err.message}`);
+            }
+        }
+
+        return { repos, available, errors };
+    }
 
     function renderExtensions() {
         const container = document.getElementById('extensions-list');
         if (!container) return;
-        container.innerHTML = mockExtensions.map(ext => `
-            <div style="background: var(--surface-color); border: 1px solid var(--surface-variant); border-radius: 8px; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+        container.innerHTML = installedExtensions.map((ext, idx) => `
+            <div style="background: var(--surface-color); border: 1px solid var(--surface-variant); border-radius: 8px; padding: 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
                 <div>
                     <strong style="color: var(--primary-color); font-size: 1.05rem;">${ext.name}</strong>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0;">Author: ${ext.author} • v${ext.version} • Status: <span style="color: #4caf50;">Enabled</span></div>
-                    <div style="font-size: 0.85rem; color: var(--text-secondary);">${ext.desc}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0;">Author: ${ext.author || 'Community'} • v${ext.version || '1.0.0'} • Status: <span style="color: #4caf50;">Enabled</span></div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);">${ext.desc || ext.description || 'Extension module.'}</div>
                 </div>
-                <button class="btn btn-outline btn-sm" onclick="alert('Extension preferences: ${ext.name}')">Configure</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-outline btn-sm" onclick="alert('Configuration options for ${ext.name}')">Configure</button>
+                    ${idx >= 3 ? `<button class="btn btn-danger btn-sm" onclick="uninstallExtension('${ext.id}')">Uninstall</button>` : ''}
+                </div>
             </div>
         `).join('');
     }
+
+    function uninstallExtension(id) {
+        installedExtensions = installedExtensions.filter(e => e.id !== id);
+        saveInstalledExtensions();
+        renderExtensions();
+    }
+
+    // Modal Display & Controller
+    async function openAddExtensionModal() {
+        document.getElementById('add-ext-modal').style.display = 'flex';
+        await refreshExtensionDiscovery();
+    }
+
+    function closeAddExtensionModal() {
+        document.getElementById('add-ext-modal').style.display = 'none';
+    }
+
+    function renderRepoList(repos) {
+        const container = document.getElementById('repo-list-container');
+        if (!container) return;
+        container.innerHTML = repos.map(url => `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; background: var(--surface-color); padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid var(--surface-variant);">
+                <code style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 440px;" title="${url}">${url}</code>
+                ${url !== DEFAULT_REPOS[0] ? `<button class="btn btn-outline btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;" onclick="removeRepoUrl('${url}')">Remove</button>` : '<span style="color: var(--text-secondary); font-size: 0.72rem;">Default</span>'}
+            </div>
+        `).join('');
+    }
+
+    async function handleAddRepoUrl() {
+        const input = document.getElementById('new-repo-url');
+        const url = normalizeRepoUrl(input.value);
+        if (!url) {
+            alert('Please enter a valid HTTP/HTTPS repository URL.');
+            return;
+        }
+        const repos = loadExtensionRepos();
+        if (!repos.includes(url)) {
+            repos.push(url);
+            saveExtensionRepos(repos);
+        }
+        input.value = '';
+        await refreshExtensionDiscovery();
+    }
+
+    async function removeRepoUrl(url) {
+        let repos = loadExtensionRepos().filter(r => r !== url);
+        if (!repos.length) repos = [...DEFAULT_REPOS];
+        saveExtensionRepos(repos);
+        await refreshExtensionDiscovery();
+    }
+
+    async function refreshExtensionDiscovery() {
+        const installedIds = new Set(installedExtensions.map(e => e.id));
+        const extContainer = document.getElementById('available-ext-container');
+        const errContainer = document.getElementById('repo-errors-container');
+        
+        if (extContainer) extContainer.innerHTML = '<span style="color: var(--text-secondary); font-size: 0.85rem;">Scanning repositories...</span>';
+        if (errContainer) errContainer.innerHTML = '';
+
+        const { repos, available, errors } = await discoverInstallableExtensions(installedIds);
+        renderRepoList(repos);
+
+        if (errors.length && errContainer) {
+            errContainer.innerHTML = '<strong>Notice:</strong> ' + errors.join('; ');
+        }
+
+        if (!extContainer) return;
+
+        if (available.length === 0) {
+            extContainer.innerHTML = `
+                <div style="background: var(--surface-color); border: 1px dashed var(--surface-variant); border-radius: 8px; padding: 1.5rem; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🎉</div>
+                    <strong style="color: var(--primary-color);">All available extensions are already installed!</strong>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.35rem;">
+                        You have installed all plugins from your current repositories. Add a new repository URL above or click "Scan Repos" to look for new updates.
+                    </div>
+                </div>
+            `;
+        } else {
+            extContainer.innerHTML = available.map(ext => `
+                <div style="background: var(--surface-color); border: 1px solid var(--surface-variant); border-radius: 8px; padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                    <div>
+                        <strong style="color: var(--primary-color);">${ext.name}</strong> <span style="font-size: 0.75rem; color: var(--text-secondary);">v${ext.version || '1.0.0'} by ${ext.author || 'Community'}</span>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">${ext.desc || ext.description || ''}</div>
+                    </div>
+                    <button class="btn btn-sm" onclick='installDiscoveredExtension(${JSON.stringify(ext).replace(/'/g, "&apos;")})'>+ Install</button>
+                </div>
+            `).join('');
+        }
+    }
+
+    function installDiscoveredExtension(ext) {
+        if (!installedExtensions.some(e => e.id === ext.id)) {
+            installedExtensions.push({
+                id: ext.id,
+                name: ext.name,
+                author: ext.author || 'Community',
+                version: ext.version || '1.0.0',
+                desc: ext.desc || ext.description || ''
+            });
+            saveInstalledExtensions();
+            renderExtensions();
+            refreshExtensionDiscovery();
+        }
+    }
+
 
     // Restore locally saved offline books from localStorage
     try {
@@ -2373,6 +2602,7 @@
     if (remoteInput) remoteInput.addEventListener('input', updateTargetPreview);
     if (customInput) customInput.addEventListener('input', updateTargetPreview);
 
+    loadInstalledExtensions();
     // Initial render
     renderLibrary();
     renderSubscriptions();

@@ -105,31 +105,32 @@ def start_rclone_rcd():
         print("  ⚠️ rclone binary not on system PATH. Proceeding with local disk staging fallback.")
         return
 
-    # Start authenticated loopback-only rcd tuned for high transfer throughput without FUSE drive mounts
-    print("  Starting authenticated loopback rclone rcd with transfer performance tuning...")
+    # Start authenticated rcd tuned for high transfer throughput without FUSE drive mounts
+    rclone_bind = os.environ.get("RCLONE_BIND_ADDR", "127.0.0.1:5572")
+    print(f"  Starting authenticated rclone rcd on {rclone_bind} with transfer performance tuning...")
     cmd = [
         "rclone", "rcd",
-        "--rc-addr=127.0.0.1:5572",
+        f"--rc-addr={rclone_bind}",
         f"--rc-user={RCLONE_USER}",
         f"--rc-pass={RCLONE_PASS}",
         "--transfers=4",
         "--checkers=8",
-        "--dir-cache-time=5m",
         "--buffer-size=32M",
-        "--vfs-cache-mode=writes",
         "--timeout=30s",
         "--contimeout=10s"
     ]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         processes.append(proc)
-        wait_for_endpoint(f"{RCLONE_URL}/core/version", "rclone rcd (:5572)", timeout_sec=5, method="POST", extra_headers={"Authorization": auth_header})
+        wait_for_endpoint(f"{RCLONE_URL}/core/version", f"rclone rcd ({rclone_bind})", timeout_sec=5, method="POST", extra_headers={"Authorization": auth_header})
     except Exception as e:
         print(f"  ⚠️ Could not spawn rclone rcd: {e}. Local disk staging fallback active.")
 
 
 def start_anymd_daemon():
-    print("🚀 [2/3] Starting AnyMD loopback daemon on 127.0.0.1:3050...")
+    anymd_host = os.environ.get("ANYMD_HOST", "127.0.0.1")
+    anymd_port = os.environ.get("ANYMD_PORT", "3050")
+    print(f"🚀 [2/3] Starting AnyMD daemon on {anymd_host}:{anymd_port}...")
     daemon_script = SRC_DIR / "daemon" / "anymd_daemon.py"
     proc = subprocess.Popen(
         [sys.executable, str(daemon_script)],
@@ -138,11 +139,13 @@ def start_anymd_daemon():
         stderr=subprocess.DEVNULL
     )
     processes.append(proc)
-    wait_for_endpoint(ANYMD_URL, "AnyMD Daemon (:3050)", timeout_sec=8)
+    wait_for_endpoint(ANYMD_URL, f"AnyMD Daemon ({anymd_port})", timeout_sec=8)
 
 
 def start_librmanage_engine():
-    print("🚀 [3/3] Starting librmanage Calibre engine on 127.0.0.1:5820...")
+    librmanage_host = os.environ.get("LIBRMANAGE_HOST", "127.0.0.1")
+    librmanage_port = os.environ.get("LIBRMANAGE_PORT", "5820")
+    print(f"🚀 [3/3] Starting librmanage Calibre engine on {librmanage_host}:{librmanage_port}...")
     engine_script = SRC_DIR / "extensions" / "librmanage" / "engine" / "librmanage_service.py"
     proc = subprocess.Popen(
         [sys.executable, str(engine_script)],
@@ -154,14 +157,28 @@ def start_librmanage_engine():
     wait_for_endpoint(f"{LIBRMANAGE_URL}/api/status", "librmanage Engine (:5820)", timeout_sec=8)
 
 
+def start_web_server():
+    if os.environ.get("SERVE_WEB", "0") in ("1", "true", "True"):
+        web_port = int(os.environ.get("WEB_PORT", "8080"))
+        web_host = os.environ.get("WEB_HOST", "0.0.0.0")
+        print(f"🚀 [4/4] Starting Kittlibr Web Edition on http://{web_host}:{web_port}...")
+        web_proc = subprocess.Popen(
+            [sys.executable, "-m", "http.server", str(web_port), "--bind", web_host],
+            cwd=str(BASE_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        processes.append(web_proc)
+
+
 def print_status_banner():
     banner = f"""
 ===================================================================
 🐾 KITTLIBR UNIFIED SERVICE TOPOLOGY READY
 ===================================================================
-  1. [Rclone Daemon]  : 127.0.0.1:5572 (Non-FUSE JSON-RPC)
-  2. [AnyMD Daemon]   : 127.0.0.1:3050 (Sharded YAML Rollup & Sidecars)
-  3. [librmanage]     : 127.0.0.1:5820 (Calibre Headless & Extensions)
+  1. [Rclone Daemon]  : {RCLONE_URL} (Non-FUSE JSON-RPC)
+  2. [AnyMD Daemon]   : {ANYMD_URL} (Sharded YAML Rollup & Sidecars)
+  3. [librmanage]     : {LIBRMANAGE_URL} (Calibre Headless & Extensions)
   4. [Active Staging] : {STAGING_DIR}
 ===================================================================
 All legacy Koodo IndexedDB, raw FBReader, and direct FUSE drive letter
@@ -175,6 +192,7 @@ def main():
     start_rclone_rcd()
     start_anymd_daemon()
     start_librmanage_engine()
+    start_web_server()
     print_status_banner()
 
     # If run in check mode, verify endpoints and exit cleanly

@@ -174,9 +174,11 @@ class LibrmanageHandler(BaseHTTPRequestHandler):
             return catalog
 
 
-def run_server(port=5820):
-    server = HTTPServer(("127.0.0.1", port), LibrmanageHandler)
-    print(f"🐾 Kittlibr librmanage Calibre Engine running at http://127.0.0.1:{port}")
+def run_server(port=None):
+    host = os.environ.get("LIBRMANAGE_HOST", "127.0.0.1")
+    port = int(os.environ.get("LIBRMANAGE_PORT", port or 5820))
+    server = HTTPServer((host, port), LibrmanageHandler)
+    print(f"🐾 Kittlibr librmanage Calibre Engine running at http://{host}:{port}")
     server.serve_forever()
 
 

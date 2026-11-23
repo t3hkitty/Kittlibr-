@@ -93,6 +93,12 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
+      - name: Generate Debug Keystore if Absent
+        run: |
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       - name: Build Android APK
         run: |
           if [ ! -f "./gradlew" ]; then
@@ -100,9 +106,9 @@ jobs:
           fi
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
-            ./gradlew assembleDebug || gradle assembleDebug || echo "Gradle build attempted"
+            ./gradlew assembleDebug --no-daemon
           else
-            gradle assembleDebug || echo "Gradle build attempted"
+            gradle assembleDebug --no-daemon
           fi
 
       - name: Upload Android APK Artifact

@@ -31,16 +31,15 @@ Kittlibr supports a modular extension architecture. Below is the recommended sug
 
 ---
 
-## Deploying on GitHub Pages
+## 🛠️ Installation & Setup (DIY)
 
-1. **Fork the Repository**:
-   Fork this repository to your personal GitHub account.
+Kittlibr supports zero-setup local offline reading as well as one-command Docker and native server deployments.
 
-2. **Configure GitHub Pages**:
-   Go to **Settings > Pages** in your repository and set the source to **GitHub Actions**.
-
-3. **Deploy**:
-   Push your changes to the `main` branch to automatically trigger the GitHub Actions build workflow and publish your site to GitHub Pages.
+See the complete guide in [**`INSTALL.md`**](INSTALL.md):
+- **Local-First Zero-Setup Mode**: Read local folders on Web/APK with no server running.
+- **Docker & Docker Compose**: Complete OOB stack deployment via `./docker-run.sh`.
+- **Native Host & Termux (Android)**: Run loopback daemons on any machine or mobile device.
+- **Speed-Tuned Rclone Config**: Non-FUSE JSON-RPC settings for maximum cloud transfer speed.
 
 ---
 

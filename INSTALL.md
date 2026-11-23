@@ -17,6 +17,7 @@ This guide walks you through setting up and running **Kittlibr** on any system:
 - [Mode 3: Native Host Setup (Linux / macOS / Windows)](#-mode-3-native-host-setup-linux--macos--windows)
 - [Mode 4: Android On-Device Setup (Termux)](#-mode-4-android-on-device-setup-termux)
 - [Mode 5: Multi-Device / LAN Configuration](#-mode-5-multi-device--lan-configuration)
+- [Mode 6: Background Seeker Service & Device Pairing](#-mode-6-background-seeker-service--device-pairing-android-windows-wsl-linux)
 - [⚡ Speed-Tuned Rclone Remote Control (Optional Cloud Sync)](#-speed-tuned-rclone-remote-control-optional-cloud-sync)
 - [🛠️ Troubleshooting & Service Health Checks](#️-troubleshooting--service-health-checks)
 
@@ -201,6 +202,100 @@ To host Kittlibr on a home server (or desktop) and access it from your phone, e-
    - In Kittlibr Client Settings:
      - AnyMD URL: `http://192.168.1.150:3050`
      - Rclone URL: `http://192.168.1.150:5572`
+
+---
+
+## 🛰️ Mode 6: Background Seeker Service & Device Pairing (Android, Windows, WSL, Linux)
+
+The **LibrManage Metadata Seeker & Scraper Service** runs as a persistent headless background daemon (`src/daemon/anymd_daemon.py` and `librmanage_service.py` on port `5820` / `3050`). It actively watches incoming staging directories, normalizes titles, queries online book databases (Goodreads, Open Library, Internet Archive), downloads cover artwork, generates AI synopsis cards, and enriches sidecar YAML metadata shards (`.anymd`).
+
+Because the Seeker Service is designed as an asynchronous background worker, client devices (Android APK, Windows desktop viewer, or web browsers) can pair with it directly over loopback or LAN.
+
+### 1. Platform Installation Requirements
+
+| Platform | Requirements | Installation Command |
+| :--- | :--- | :--- |
+| **Android (APK)** | Android 7.0+ (Nougat) or higher, `POST_NOTIFICATIONS` permission enabled | Install `Kittlibr.apk` from GitHub Actions Releases. If running headless seeker daemon locally on device, install Termux + Python. |
+| **Windows 10/11** | Python 3.10+ (or standalone `Kittlibr.exe`), PowerShell or CMD | `pip install fastapi uvicorn requests pyyaml xxhash pydantic httpx` or run `Kittlibr.exe`. |
+| **WSL 2 (Ubuntu/Debian)** | WSL 2 Kernel, Python 3.10+ | `sudo apt update && sudo apt install -y python3 python3-pip python3-venv git rclone` |
+| **Linux (Server/Desktop)** | Systemd / Docker, Python 3.10+ | `sudo apt install python3-pip && pip install -r requirements.txt` |
+| **macOS** | macOS 12+ (Monterey+), Homebrew | `brew install python rclone && pip3 install -r requirements.txt` |
+
+---
+
+### 2. Launching the Headless Background Seeker Service
+
+#### On Linux / WSL / macOS:
+```bash
+# Start background seeker daemon binding to your preferred interface
+export LIBRMANAGE_HOST=0.0.0.0
+export LIBRMANAGE_PORT=5820
+export ANYMD_HOST=0.0.0.0
+export ANYMD_PORT=3050
+
+python3 start_kittlibr.py --headless &
+```
+
+Or set it up as a **systemd user service** (`~/.config/systemd/user/kittlibr-seeker.service`):
+```ini
+[Unit]
+Description=Kittlibr Background Seeker & AnyMD Daemon
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/username/Kittlibr-
+ExecStart=/usr/bin/python3 start_kittlibr.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+Enable and start:
+```bash
+systemctl --user enable --now kittlibr-seeker.service
+```
+
+#### On Windows / WSL:
+- Run directly inside Windows PowerShell:
+  ```powershell
+  python start_kittlibr.py
+  # Or run the prebuilt single-file executable:
+  .\Kittlibr.exe
+  ```
+- If running under **WSL 2** with Windows frontend pairing, ensure your `.wslconfig` includes `networkingMode=mirrored` or configure port forwarding:
+  ```powershell
+  netsh interface portproxy add v4tov4 listenport=5820 listenaddress=0.0.0.0 connectport=5820 connectaddress=127.0.0.1
+  ```
+
+#### On Android (Termux):
+```bash
+# Keep Termux running in the background with wake lock
+termux-wake-lock
+cd Kittlibr-
+python3 start_kittlibr.py &
+```
+
+---
+
+### 3. Pairing Client Apps with the Background Seeker Service
+
+Once the service is active, link your client app (Android APK, Windows UI, or Web Edition):
+
+1. **Open Kittlibr Client** (Web App, Windows Viewer, or Android APK).
+2. **Navigate to `LibrManage` > `Preferences`** (or `Settings` > `Service Endpoints`):
+   - **Local Device**: If running on the same machine/device, set endpoint to:
+     ```text
+     http://127.0.0.1:5820
+     ```
+   - **Remote / LAN (Phone to PC/Server)**: If your seeker service is hosted on your PC/NAS, enter your host LAN IP:
+     ```text
+     http://192.168.1.xxx:5820
+     ```
+3. **Verify Pairing**:
+   - In the **LibrManage** tab, click **"⚡ Run Seeker on All Books"** or toggle **"Run Metadata Seeker on Import automatically"**.
+   - Newly dropped EPUB, Markdown, or web novel chapters in your staging folder will be automatically scanned, cleaned, and updated with AI summaries and genre/trope tags.
 
 ---
 

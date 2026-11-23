@@ -45,6 +45,11 @@ from src.auth.google_oauth import (
     resolve_scopes,
     get_token_storage_path
 )
+from src.vaultr.pipeline import (
+    VaultrPipeline,
+    VaultrConfig,
+    SingleFlightLock
+)
 
 app = FastAPI(
     title="AnyMD Universal Loopback Daemon",
@@ -257,6 +262,8 @@ def get_api_status(remote: Optional[str] = None, path: Optional[str] = None):
         "expiry": token_status["expiry"],
         "active_modules": [k for k, v in token_status["presets"].items() if v["authorized"]]
     }
+    # Include Vaultr pipeline & free-space summary
+    res["vaultr_status"] = vaultr_pipeline.get_tier_status()
     return res
 
 
@@ -651,7 +658,53 @@ def rclone_scan_import(req: RcloneScanRequest):
     }
 
 
+# Global Vaultr Pipeline instance
+vaultr_pipeline = VaultrPipeline()
+
+
+@app.get("/api/vaultr/status")
+def get_vaultr_status():
+    """
+    Read-only GET query layer for tier status, free-space checks,
+    sidecar queue, and Discord readiness without triggering heavy syncs.
+    """
+    return vaultr_pipeline.get_tier_status()
+
+
+class VaultrTriggerRequest(BaseModel):
+    destination_remote: Optional[str] = None
+    discord_webhook_url: Optional[str] = None
+    min_free_space_mb: Optional[int] = None
+
+
+@app.post("/api/vaultr/trigger")
+def trigger_vaultr_sync(req: Optional[VaultrTriggerRequest] = None):
+    """
+    Button-triggered headless Vaultr execution:
+    Runs the 4-Folder Seedr pipeline (Incoming -> Staging -> Sidecar Ready -> Main Vault/Cloud)
+    under single-flight lock protection.
+    """
+    if req:
+        if req.destination_remote is not None:
+            vaultr_pipeline.config.destination_remote = req.destination_remote
+        if req.discord_webhook_url is not None:
+            vaultr_pipeline.config.discord_webhook_url = req.discord_webhook_url
+        if req.min_free_space_mb is not None:
+            vaultr_pipeline.config.min_free_space_bytes = req.min_free_space_mb * 1024 * 1024
+
+    try:
+        result = vaultr_pipeline.run_pipeline()
+        return result
+    except BlockingIOError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     host = os.environ.get("ANYMD_HOST", "127.0.0.1")
     port = int(os.environ.get("ANYMD_PORT", "3050"))
     uvicorn.run(app, host=host, port=port, log_level="info")
+

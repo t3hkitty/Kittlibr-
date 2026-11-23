@@ -212,6 +212,7 @@ KITTLIBR UNIFIED SERVICE TOPOLOGY READY
   3. [librmanage]     : {LIBRMANAGE_URL} (Calibre Headless & Extensions)
   4. [Google OAuth]   : {token_note}
   5. [Active Staging] : {STAGING_DIR}
+  6. [Vaultr 4-Folder]: Button-Triggered Headless Pipeline (:3050/api/vaultr/trigger)
 ===================================================================
 All legacy Koodo IndexedDB, raw FBReader, and direct FUSE drive letter
 paths have been severed and replaced with loopback JSON contracts.
@@ -221,6 +222,9 @@ paths have been severed and replaced with loopback JSON contracts.
 
 
 def main():
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     start_rclone_rcd()
     start_anymd_daemon()
     start_librmanage_engine()
@@ -249,3 +253,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

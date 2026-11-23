@@ -15,7 +15,12 @@ import re
 import os
 import sys
 import tempfile
-import xxhash
+import hashlib
+
+try:
+    import xxhash
+except ImportError:
+    xxhash = None
 
 try:
     import yaml
@@ -48,14 +53,26 @@ class AnyMDEngine:
         self.vault_root = vault_root
 
     def compute_xxhash(self, file_path: Path) -> str:
-        h = xxhash.xxh64()
+        if xxhash is not None:
+            h = xxhash.xxh64()
+            try:
+                with open(file_path, "rb") as f:
+                    while chunk := f.read(8192):
+                        h.update(chunk)
+                return h.hexdigest()
+            except Exception:
+                return "error-hash"
+        return self.compute_md5(file_path)
+
+    def compute_md5(self, file_path: Path) -> str:
+        h = hashlib.md5()
         try:
             with open(file_path, "rb") as f:
                 while chunk := f.read(8192):
                     h.update(chunk)
             return h.hexdigest()
         except Exception:
-            return "error-hash"
+            return ""
 
     def generate_zettelkasten_id(self) -> str:
         """Pacific Time anchors (YYYYMMDD-HHMM) with FIFO serials"""
@@ -223,6 +240,12 @@ def write_sidecar_endpoint(req: WriteSidecarRequest):
     if "zettelkasten_id" not in meta or not meta["zettelkasten_id"]:
         meta["zettelkasten_id"] = engine.generate_zettelkasten_id()
 
+    if target.exists() and ("md5" not in meta or not meta["md5"]):
+        meta["md5"] = engine.compute_md5(target)
+
+    if "canonical_id" not in meta or not meta["canonical_id"]:
+        meta["canonical_id"] = meta.get("md5") or meta.get("zettelkasten_id") or req.file_path
+
     try:
         engine.atomic_write_yaml(sidecar_path, meta, req.body or "")
         # Re-index sharded catalog on write
@@ -317,6 +340,128 @@ def rclone_status():
     except Exception as e:
         return {"connected": False, "error": str(e), "endpoint": rc_url, "mode": "local_fallback"}
     return {"connected": False, "endpoint": rc_url, "mode": "local_fallback"}
+
+
+class RcloneScanRequest(BaseModel):
+    remote: str
+    path: Optional[str] = ""
+    auth_header: Optional[str] = None
+    rc_url: Optional[str] = None
+    write_sidecars: Optional[bool] = True
+
+
+@app.post("/api/rclone/scan-import")
+def rclone_scan_import(req: RcloneScanRequest):
+    """
+    Scans a remote using targeted rclone operations/list (lsf equivalent) and generates
+    detailed AnyMD YAML sidecars incorporating all rclone metadata (hashes, ModTime, Size, MIME, etc.).
+    Emits structured diagnostic logs.
+    """
+    endpoint = (req.rc_url or RCLONE_RCD_URL).rstrip("/")
+    headers = {"Content-Type": "application/json"}
+    if req.auth_header:
+        headers["Authorization"] = req.auth_header
+
+    remote_fs = req.remote if req.remote.endswith(":") else f"{req.remote}:"
+    remote_dir = (req.path or "").strip("/\\")
+
+    print(f"[kittlibr-anymd][scan] Starting targeted rclone lsf listing on {remote_fs}{remote_dir}")
+
+    # Use rclone operations/list with metadata=true to gather everything possible
+    list_payload = {
+        "fs": remote_fs,
+        "remote": remote_dir,
+        "opt": {
+            "recurse": True,
+            "showHash": True,
+            "metadata": True,
+            "noModTime": False
+        }
+    }
+
+    try:
+        resp = requests.post(f"{endpoint}/operations/list", json=list_payload, headers=headers, timeout=30)
+        if resp.status_code != 200:
+            # Fallback to standard non-metadata list
+            resp = requests.post(f"{endpoint}/operations/list", json={
+                "fs": remote_fs,
+                "remote": remote_dir,
+                "opt": {"recurse": True}
+            }, headers=headers, timeout=30)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"rclone list failed: {resp.text}")
+        
+        items = resp.json().get("list", [])
+    except Exception as e:
+        print(f"[kittlibr-reader][error] source: 'kittlibr-anymd', stage: 'rclone-scan', message: '{str(e)}'")
+        raise HTTPException(status_code=500, detail=f"Failed to communicate with rclone: {str(e)}")
+
+    # Filter for ebook items (.epub, .md, .txt)
+    book_items = [
+        item for item in items
+        if not item.get("IsDir", False) and any(item.get("Name", "").lower().endswith(ext) for ext in [".epub", ".md", ".txt"])
+    ]
+
+    detected_count = len(book_items)
+    print(f"[kittlibr-anymd][scan] Detected {detected_count} ebook files out of {len(items)} total entries")
+
+    generated_sidecars = []
+    for idx, item in enumerate(book_items):
+        item_path = item.get("Path") or item.get("Name")
+        file_name = item.get("Name", os.path.basename(item_path))
+        ext = file_name.split(".")[-1].lower() if "." in file_name else ""
+        base_name = file_name[:-(len(ext) + 1)] if ext else file_name
+
+        hashes = item.get("Hashes", {}) or {}
+        md5_hash = hashes.get("md5") or hashes.get("MD5") or hashes.get("quickxor") or item.get("MD5") or ""
+
+        # Extract maximum detail from rclone listing item to maximize sidecar reusability
+        meta_dict = {
+            "zettelkasten_id": engine.generate_zettelkasten_id(),
+            "title": base_name.replace("_", " ").replace("-", " ").title(),
+            "author": "Unknown Author",
+            "format": ext.upper(),
+            "canonical_id": md5_hash or f"rclone:{remote_fs}{item_path}",
+            "md5": md5_hash,
+            "relative_path": item_path,
+            "source_vault": f"rclone:{remote_fs}",
+            "tags": ["rclone-imported", ext.upper()],
+            "warnings": [],
+            "status": "Unread",
+            "rclone_metadata": {
+                "remote": remote_fs,
+                "remote_path": item_path,
+                "size_bytes": item.get("Size", 0),
+                "mod_time": item.get("ModTime"),
+                "mime_type": item.get("MimeType", "application/epub+zip" if ext == "epub" else "text/plain"),
+                "hashes": hashes,
+                "tier": item.get("Tier"),
+                "storage_class": item.get("StorageClass"),
+                "system_metadata": item.get("Metadata", {})
+            }
+        }
+
+        if req.write_sidecars:
+            target = engine.vault_root / item_path.lstrip("/\\")
+            paths = engine.get_sidecar_paths(target)
+            sidecar_path = paths["subfolder"]
+            engine.atomic_write_yaml(sidecar_path, meta_dict)
+            generated_sidecars.append(str(sidecar_path))
+
+        if (idx + 1) % 25 == 0 or (idx + 1) == detected_count:
+            print(f"[kittlibr-anymd][progress] Processed {idx + 1}/{detected_count} ebooks (~{max(0, detected_count - idx - 1)} items remaining)")
+
+    if req.write_sidecars:
+        engine.rebuild_sharded_index()
+
+    return {
+        "success": True,
+        "detected_count": detected_count,
+        "imported_count": len(generated_sidecars),
+        "source_remote": remote_fs,
+        "source_path": remote_dir,
+        "manifest_updated": req.write_sidecars
+    }
 
 
 if __name__ == "__main__":

@@ -93,6 +93,8 @@ jobs:
         run: |
           mkdir -p _site
           cp app/index.html _site/index.html
+          cp -r public _site/public || true
+          cp -r src _site/src || true
           cp app/.nojekyll _site/.nojekyll || touch _site/.nojekyll
 
       - name: Setup Pages

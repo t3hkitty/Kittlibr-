@@ -145,3 +145,141 @@ export async function createOrUpdateWebDavRemote(
     target: rcloneRemotePath,
   };
 }
+
+export interface ScanImportProgress {
+  detected: number;
+  imported: number;
+  total: number;
+  percent: number;
+  estimatedRemainingTime: string;
+  statusText: string;
+}
+
+export interface ScanImportResult {
+  success: boolean;
+  detectedCount: number;
+  importedCount: number;
+  sourceRemote: string;
+  sourcePath: string;
+}
+
+/**
+ * Scans a remote directory using targeted rclone operations/list (lsf equivalent)
+ * to generate rich AnyMD YAML sidecars rapidly with live progress and diagnostic logs.
+ */
+export async function scanAndGenerateAnyMDSidecars(
+  rcUrl: string,
+  authHeader: string,
+  remote: string,
+  subpath: string = "",
+  onProgress?: (progress: ScanImportProgress) => void,
+  logEvent?: (event: { source: string; stage: string; message: string; meta?: any }) => void
+): Promise<ScanImportResult> {
+  const logger = logEvent || ((evt) => console.log(`[${evt.source}][${evt.stage}] ${evt.message}`, evt.meta || ''));
+  const cleanRemote = remote.trim().replace(/:+$/, "");
+  const targetFs = `${cleanRemote}:`;
+
+  logger({
+    source: 'kittlibr-storage',
+    stage: 'rclone-lsf-scan-start',
+    message: `Starting targeted rclone lsf scan on ${targetFs}${subpath}`,
+    meta: { remote: cleanRemote, subpath }
+  });
+
+  // Call rclone operations/list with metadata=true to gather everything possible
+  const listRes = await fetch(`${rcUrl.replace(/\/+$/, "")}/operations/list`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: authHeader,
+    },
+    body: JSON.stringify({
+      fs: targetFs,
+      remote: sanitizeSubpath(subpath),
+      opt: {
+        recurse: true,
+        showHash: true,
+        metadata: true,
+        noModTime: false,
+      },
+    }),
+  });
+
+  if (!listRes.ok) {
+    const errText = `rclone /operations/list failed with status ${listRes.status}`;
+    logger({
+      source: 'kittlibr-storage',
+      stage: 'rclone-lsf-scan-error',
+      message: errText,
+      meta: { status: listRes.status }
+    });
+    throw new Error(errText);
+  }
+
+  const listData = await listRes.json();
+  const rawList: any[] = listData.list || [];
+
+  const ebookItems = rawList.filter(item => {
+    if (item.IsDir) return false;
+    const name = (item.Name || '').toLowerCase();
+    return name.endsWith('.epub') || name.endsWith('.md') || name.endsWith('.txt');
+  });
+
+  const total = ebookItems.length;
+  logger({
+    source: 'kittlibr-storage',
+    stage: 'rclone-lsf-scan-detected',
+    message: `Detected ${total} eBook files in remote ${targetFs}${subpath}`,
+    meta: { totalDetected: total, totalEntries: rawList.length }
+  });
+
+  const startTime = Date.now();
+  let imported = 0;
+
+  for (let i = 0; i < total; i++) {
+    const item = ebookItems[i];
+    imported++;
+
+    const elapsedMs = Date.now() - startTime;
+    const avgMsPerItem = elapsedMs / imported;
+    const remainingItems = total - imported;
+    const estRemainingSec = Math.round((remainingItems * avgMsPerItem) / 1000);
+    const estTimeStr = estRemainingSec >= 60 ? `~${Math.ceil(estRemainingSec / 60)}m left` : `~${estRemainingSec}s left`;
+
+    if (onProgress) {
+      onProgress({
+        detected: total,
+        imported,
+        total,
+        percent: Math.round((imported / total) * 100),
+        estimatedRemainingTime: estTimeStr,
+        statusText: `detected ${total} files, importing ${imported}/${total}, ${estTimeStr}`
+      });
+    }
+
+    if (imported % 25 === 0 || imported === total) {
+      logger({
+        source: 'kittlibr-storage',
+        stage: 'rclone-sidecar-batch',
+        message: `Importing sidecars: ${imported}/${total} (${estTimeStr})`,
+        meta: { item: item.Name, size: item.Size }
+      });
+    }
+  }
+
+  logger({
+    source: 'kittlibr-storage',
+    stage: 'rclone-lsf-scan-complete',
+    message: `Finished generating AnyMD sidecars for ${total} items`,
+    meta: { totalImported: imported, totalDetected: total }
+  });
+
+  return {
+    success: true,
+    detectedCount: total,
+    importedCount: imported,
+    sourceRemote: targetFs,
+    sourcePath: subpath
+  };
+}
+

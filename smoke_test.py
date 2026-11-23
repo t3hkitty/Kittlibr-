@@ -144,37 +144,74 @@ def main():
 
     # Step 6: Hardened Reader Pipeline (Encoding, Archive, Structural Anchor)
     try:
-        # Run node check on kookit.min.js and hardening utilities
-        node_script = """
-        const { EncodingFallbackSniffer } = require('./src/utils/hardening/EncodingFallbackSniffer');
-        const { DefensiveArchiveUnpacker } = require('./src/utils/hardening/DefensiveArchiveUnpacker');
-        const { StructuralLocationAnchor } = require('./src/utils/hardening/StructuralLocationAnchor');
+        test_epub_path = BASE_DIR / "test_claimed_by_shadow.epub"
+        # Build test EPUB (Claimed By Shadow)
+        import zipfile
+        with zipfile.ZipFile(test_epub_path, "w") as z:
+            z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+            z.writestr("META-INF/container.xml", """<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>""")
+            z.writestr("OEBPS/content.opf", """<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Claimed By Shadow</dc:title>
+    <dc:creator>Jane Doe</dc:creator>
+    <dc:identifier id="BookId">urn:uuid:claimed-by-shadow-1</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="ch1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="ch2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="ch1"/>
+    <itemref idref="ch2"/>
+  </spine>
+</package>""")
+            z.writestr("OEBPS/chapter1.xhtml", """<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Chapter 1: Shadows Gather</title></head>
+<body>
+  <h1>Chapter 1: Shadows Gather</h1>
+  <p>The night descended upon the ancient library with an unnatural stillness.</p>
+</body>
+</html>""")
+            z.writestr("OEBPS/chapter2.xhtml", """<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Chapter 2: The Binding Oath</title></head>
+<body>
+  <h1>Chapter 2: The Binding Oath</h1>
+  <p>An oath forged in silver light could never be broken.</p>
+</body>
+</html>""")
 
-        // Test 1: Sniffing Windows-1252 & UTF-8
-        const utf8Buf = new TextEncoder().encode("Hello World, Words Are Magic!");
-        const sniff = EncodingFallbackSniffer.sniffAndDecode(utf8Buf);
+        node_code = """
+const fs = require('fs');
+globalThis.JSZip = require('./src/assets/lib/jszip.min.js');
+const { DefensiveArchiveUnpacker } = require('./src/utils/hardening/DefensiveArchiveUnpacker');
+const { EncodingFallbackSniffer } = require('./src/utils/hardening/EncodingFallbackSniffer');
+const { StructuralLocationAnchor } = require('./src/utils/hardening/StructuralLocationAnchor');
 
-        // Test 2: Zip Slip defense
-        const safe = DefensiveArchiveUnpacker.sanitizeEntryPath("valid/chapter1.xhtml", "/cache");
-        const malicious = DefensiveArchiveUnpacker.sanitizeEntryPath("../../../etc/passwd", "/cache");
-
-        // Test 3: Structural Anchor
-        const anchor = StructuralLocationAnchor.createAnchor(5, 2, 14, 50, "The cat sat on the mat");
-
-        if (sniff.decodedText && safe && !malicious && anchor.percentage === 10) {
-            console.log(JSON.stringify({ success: true, encoding: sniff.encoding, anchorPct: anchor.percentage }));
-        } else {
-            console.log(JSON.stringify({ success: false }));
-        }
-        """
-        # Quick transpile/eval using esbuild or node
-        test_py = f"""
-import subprocess
-res = subprocess.run(["node", "-e", \"\"\"{node_script}\"\"\"], capture_output=True, text=True, cwd="{BASE_DIR}")
-print(res.stdout or res.stderr)
+async function test() {
+    const bytes = fs.readFileSync('test_claimed_by_shadow.epub');
+    const unpacked = await DefensiveArchiveUnpacker.unpackEpub(new Uint8Array(bytes));
+    if (unpacked.title !== 'Claimed By Shadow' || unpacked.chapters.length !== 2) {
+        throw new Error('Title or chapters mismatch: ' + JSON.stringify(unpacked));
+    }
+    if (!unpacked.chapters[0].html.includes('Shadows Gather')) {
+        throw new Error('Chapter 1 content missing');
+    }
+    const anchor = StructuralLocationAnchor.createAnchor(1, 0, 0, unpacked.chapters.length, 'Chapter 2');
+    console.log(JSON.stringify({ success: true, title: unpacked.title, chapters: unpacked.chapters.length, anchorPct: anchor.percentage }));
+}
+test().catch(err => { console.error(err); process.exit(1); });
 """
-        # Let's test the TS files with ts-node or python mock runner
-        record_step("Hardened Reader Pipeline", True, "EncodingFallbackSniffer, DefensiveArchiveUnpacker & StructuralLocationAnchor verified")
+        res = subprocess.run(["npx", "tsx", "-e", node_code], capture_output=True, text=True, cwd=str(BASE_DIR))
+        test_epub_path.unlink(missing_ok=True)
+        if res.returncode != 0:
+            raise RuntimeError(res.stderr or res.stdout)
+        record_step("Hardened Reader Pipeline", True, "DefensiveArchiveUnpacker EPUB unpacker (Claimed By Shadow), spine parser & StructuralLocationAnchor verified")
     except Exception as e:
         record_step("Hardened Reader Pipeline", False, str(e))
 

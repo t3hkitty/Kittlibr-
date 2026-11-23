@@ -40,12 +40,16 @@ app = FastAPI(
 )
 
 # Configuration defaults (overridable via ENV)
-STAGING_DIR = Path(os.environ.get("KITTLIBR_STAGING_DIR", "/home/antigravity/kittlibr_host/staging_cache"))
+default_staging = Path(tempfile.gettempdir()) / "kittlibr_staging_cache"
+STAGING_DIR = Path(os.environ.get("KITTLIBR_STAGING_DIR", str(default_staging)))
 SHARD_SIZE = 500
 RCLONE_RCD_URL = os.environ.get("RCLONE_RCD_URL", "http://127.0.0.1:5572")
 
-STAGING_DIR.mkdir(parents=True, exist_ok=True)
-(STAGING_DIR / ".anymd").mkdir(parents=True, exist_ok=True)
+try:
+    STAGING_DIR.mkdir(parents=True, exist_ok=True)
+    (STAGING_DIR / ".anymd").mkdir(parents=True, exist_ok=True)
+except Exception as e:
+    print(f"[AnyMD] Warning: Could not create staging dir {STAGING_DIR}: {e}")
 
 
 class AnyMDEngine:

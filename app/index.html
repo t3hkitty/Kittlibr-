@@ -766,11 +766,52 @@
                 </ul>
             </div>
 
-            <!-- WebDAV Quick Action Launchers -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
-                <button class="btn" onclick="openRemoteExplorer('library')">📚 Configure Library Folder</button>
-                <button class="btn btn-outline" onclick="openRemoteExplorer('backup')">💾 Configure Backup Folder</button>
-                <button class="btn btn-outline" onclick="openRemoteExplorer('downloads')">📥 Configure Downloads Folder</button>
+            <!-- Remote & Local Folder Quick Action Launchers (WebDAV + Local Fallback in absence of Rclone) -->
+            <div style="margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <strong style="color: var(--primary-color);">📁 Storage Folder Providers & Local Fallback (No Rclone Required):</strong>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Direct browser/FSA file & directory choosers</span>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem;">
+                    <!-- Local Library Folder / Ebook File Chooser -->
+                    <div style="background: var(--surface-variant); border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.6rem;">
+                        <div>
+                            <strong style="display: block; font-size: 0.9rem;">📚 Main Library</strong>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Pick local eBooks (.epub, .md) or sync with remote mount.</span>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" onclick="document.getElementById('local-library-file-picker').click()">📁 Pick Local Ebooks</button>
+                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('library')">☁️ Remote Folder</button>
+                            <input type="file" id="local-library-file-picker" accept=".epub,.md,.txt" multiple style="display: none;" onchange="handleLocalFilesSelected(event)">
+                        </div>
+                    </div>
+
+                    <!-- Local Backup / Restore File Chooser -->
+                    <div style="background: var(--surface-variant); border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.6rem;">
+                        <div>
+                            <strong style="display: block; font-size: 0.9rem;">💾 Cloud & Local Backup</strong>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Restore full vault from local snapshot file or configure cloud folder.</span>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" onclick="document.getElementById('backup-restore-file-input').click()">📦 Restore Local Backup</button>
+                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('backup')">☁️ Remote Folder</button>
+                        </div>
+                    </div>
+
+                    <!-- Local Downloads & Staging Chooser -->
+                    <div style="background: var(--surface-variant); border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.6rem;">
+                        <div>
+                            <strong style="display: block; font-size: 0.9rem;">📥 Downloads & Staging</strong>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Select incoming folder for chapter scrapers and webnovels.</span>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-sm" onclick="document.getElementById('local-downloads-file-picker').click()">📂 Select Local Staging</button>
+                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('downloads')">☁️ Remote Folder</button>
+                            <input type="file" id="local-downloads-file-picker" webkitdirectory directory multiple style="display: none;" onchange="handleLocalDirectorySelected(event)">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Remote Folder Explorer Modal / Panel -->
@@ -2097,10 +2138,17 @@
         reader.readAsText(file);
     }
 
-    // Local Files Import
+    // Local Files Import (Fallback in absence of Rclone)
     function handleLocalFilesSelected(event) {
         const files = Array.from(event.target.files || []);
         if (files.length === 0) return;
+
+        // Check if user selected a backup snapshot JSON file
+        const backupFile = files.find(f => f.name.endsWith('.json'));
+        if (backupFile) {
+            handleRestoreBackupFileSelected({ target: { files: [backupFile], value: '' } });
+            return;
+        }
 
         const autoSeek = document.getElementById('auto-seek-import')?.checked;
 
@@ -2160,6 +2208,28 @@
         });
 
         alert(`Reading ${files.length} local file(s) into your library (Metadata Seeker active: ${autoSeek}).`);
+    }
+
+    // Local Directory Chooser (Staging / Downloads Fallback)
+    function handleLocalDirectorySelected(event) {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) return;
+
+        // Auto-check for backup snapshot file inside chosen folder
+        const backupFile = files.find(f => f.name.endsWith('.json') && f.name.includes('backup'));
+        if (backupFile) {
+            if (confirm(`Discovered vault backup archive (${backupFile.name}) in selected folder. Would you like to restore from it now?`)) {
+                handleRestoreBackupFileSelected({ target: { files: [backupFile], value: '' } });
+                return;
+            }
+        }
+
+        const validEbooks = files.filter(f => ['epub', 'md', 'txt'].includes(f.name.split('.').pop().toLowerCase()));
+        if (validEbooks.length > 0) {
+            handleLocalFilesSelected({ target: { files: validEbooks, value: '' } });
+        } else {
+            alert(`Selected folder contains ${files.length} items. Staging folder registered for incoming downloads and chapter scrapers.`);
+        }
     }
 
     // Exporting

@@ -243,8 +243,20 @@ fun StorageSyncScreen(
                             ) {
                                 Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Local Cloud Folder")
+                                Text("Local Backup Folder")
                             }
+                            Button(
+                                onClick = { restoreBackupLauncher.launch(arrayOf("application/json", "text/*")) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer)
+                            ) {
+                                Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Restore Backup File")
+                            }
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = {
                                     explorerTargetPurpose = "backup"
@@ -255,7 +267,7 @@ fun StorageSyncScreen(
                             ) {
                                 Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Explore Backup Host")
+                                Text("Remote WebDAV Backup")
                             }
                         }
 

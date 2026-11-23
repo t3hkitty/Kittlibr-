@@ -19,3 +19,6 @@ debug.keystore
 __pycache__/
 *.py[cod]
 node_modules/
+webdav_fixture/
+staging_cache/
+

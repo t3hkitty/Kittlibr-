@@ -2809,6 +2809,54 @@
         return clean;
     }
 
+    // Split serial markdown / text files into discrete chapters based on headings (# Chapter ...)
+    function parseMarkdownChapters(text, baseTitle) {
+        if (!text) return [];
+        // Strip YAML frontmatter if present
+        let body = text;
+        const frontmatterMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+        if (frontmatterMatch) {
+            body = frontmatterMatch[2];
+        }
+
+        const lines = body.split(/\r?\n/);
+        const chapters = [];
+        let curTitle = `${baseTitle} - Prologue`;
+        let curLines = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const headerMatch = line.match(/^#{1,3}\s+(.+)$/);
+            if (headerMatch && (curLines.length > 0 || chapters.length > 0)) {
+                if (curLines.length > 0) {
+                    chapters.push({
+                        id: `ch_${chapters.length}`,
+                        title: curTitle,
+                        html: curLines.map(l => `<p>${escapeHtml(l)}</p>`).join(''),
+                        index: chapters.length
+                    });
+                }
+                curTitle = headerMatch[1].trim();
+                curLines = [];
+            } else if (headerMatch && curLines.length === 0) {
+                curTitle = headerMatch[1].trim();
+            } else {
+                curLines.push(line);
+            }
+        }
+
+        if (curLines.length > 0 || chapters.length === 0) {
+            chapters.push({
+                id: `ch_${chapters.length}`,
+                title: curTitle,
+                html: curLines.map(l => `<p>${escapeHtml(l)}</p>`).join(''),
+                index: chapters.length
+            });
+        }
+
+        return chapters;
+    }
+
     // Canonical Reading Progress Keys & Migration
     const READING_PROGRESS_KEY_PREFIX = "kittlibr_progress_";
 
@@ -2909,13 +2957,17 @@
                     const decoder = new TextDecoder('utf-8');
                     textContent = decoder.decode(uint8);
 
-                    if (ext === 'md') {
+                    if (ext === 'md' || ext === 'txt') {
                         const match = textContent.match(/^---\r?\n([\s\S]*?)\r?\n---/);
                         if (match) {
                             match[1].split(/\r?\n/).forEach(line => {
                                 if (line.startsWith('title:')) title = line.replace('title:', '').trim().replace(/^['"]|['"]$/g, '');
                                 if (line.startsWith('author:')) author = line.replace('author:', '').trim().replace(/^['"]|['"]$/g, '');
                             });
+                        }
+                        chapters = parseMarkdownChapters(textContent, title);
+                        if (chapters.length > 0) {
+                            textContent = chapters[0].html;
                         }
                     }
                 }

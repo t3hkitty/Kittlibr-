@@ -80,12 +80,16 @@ class AnyMDEngine:
         return now.strftime("%Y%m%d-%H%M")
 
     def get_sidecar_paths(self, target_file: Path) -> Dict[str, Path]:
-        """Supports both side-by-side <file>.ext.md and .anymd/<file>.ext.md"""
+        """Supports subfolder (.anymd/<file>.ext.md), side-by-side (<file>.ext.md), dot_anymd (.<file>.anymd), and anymd (<file>.anymd)"""
         side_by_side = target_file.with_name(f"{target_file.name}.md")
         subfolder = target_file.parent / ".anymd" / f"{target_file.name}.md"
+        dot_anymd = target_file.with_name(f".{target_file.name}.anymd")
+        anymd = target_file.with_name(f"{target_file.name}.anymd")
         return {
             "side_by_side": side_by_side,
-            "subfolder": subfolder
+            "subfolder": subfolder,
+            "dot_anymd": dot_anymd,
+            "anymd": anymd
         }
 
     def atomic_write_yaml(self, file_path: Path, data: Dict[str, Any], body_text: str = "") -> None:
@@ -134,7 +138,7 @@ class AnyMDEngine:
 
         for root, dirs, files in os.walk(self.vault_root):
             for file in files:
-                if file.endswith(".md") and not file.startswith(".tmp-"):
+                if (file.endswith(".md") or file.endswith(".anymd")) and not file.startswith(".tmp-"):
                     p = Path(root) / file
                     data = self.read_sidecar(p)
                     if data:
@@ -208,6 +212,27 @@ def read_root():
     }
 
 
+@app.get("/api/status")
+def get_api_status(remote: Optional[str] = None, path: Optional[str] = None):
+    """
+    Honest status endpoint exposing daemon health, active vault root,
+    and echoing queried remote/subpaths.
+    """
+    res = {
+        "status": "online",
+        "service": "AnyMD Universal Loopback Daemon",
+        "port": 3050,
+        "vault_root": str(engine.vault_root),
+        "timestamp": datetime.now().isoformat(),
+        "shard_limit": SHARD_SIZE
+    }
+    if remote is not None:
+        res["queried_remote"] = remote
+    if path is not None:
+        res["queried_path"] = path
+    return res
+
+
 @app.get("/api/zettelkasten/new-id")
 def get_zettel_id():
     return {"zettelkasten_id": engine.generate_zettelkasten_id()}
@@ -234,7 +259,14 @@ def write_sidecar_endpoint(req: WriteSidecarRequest):
     """
     target = engine.vault_root / req.file_path.lstrip("/\\")
     paths = engine.get_sidecar_paths(target)
-    sidecar_path = paths["side_by_side"] if req.mode == "side_by_side" else paths["subfolder"]
+    if req.mode == "dot_anymd":
+        sidecar_path = paths["dot_anymd"]
+    elif req.mode == "anymd":
+        sidecar_path = paths["anymd"]
+    elif req.mode == "side_by_side":
+        sidecar_path = paths["side_by_side"]
+    else:
+        sidecar_path = paths["subfolder"]
 
     meta = req.metadata
     if "zettelkasten_id" not in meta or not meta["zettelkasten_id"]:
@@ -257,6 +289,47 @@ def write_sidecar_endpoint(req: WriteSidecarRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/sidecar/read")
+def read_sidecar_endpoint(file_path: str, mode: Optional[str] = "subfolder"):
+    """
+    Read sidecar metadata for a given book file path, checking subfolder (.anymd/file.ext.md),
+    side-by-side (file.ext.md, .file.anymd, file.anymd), or direct path.
+    """
+    target = engine.vault_root / file_path.lstrip("/\\")
+    
+    candidates = []
+    if file_path.endswith(".md") or file_path.endswith(".anymd"):
+        candidates.append(target)
+    
+    paths = engine.get_sidecar_paths(target)
+    if mode == "side_by_side":
+        candidates.extend([
+            paths["side_by_side"],
+            target.with_name(f".{target.name}.anymd"),
+            target.with_name(f"{target.name}.anymd"),
+            paths["subfolder"]
+        ])
+    else:
+        candidates.extend([
+            paths["subfolder"],
+            paths["side_by_side"],
+            target.with_name(f".{target.name}.anymd"),
+            target.with_name(f"{target.name}.anymd")
+        ])
+
+    for c in candidates:
+        if c.exists():
+            data = engine.read_sidecar(c)
+            if data is not None:
+                return {
+                    "success": True,
+                    "sidecar_path": str(c),
+                    "metadata": data
+                }
+
+    raise HTTPException(status_code=404, detail=f"Sidecar not found for {file_path}")
 
 
 @app.post("/api/query/translate")
@@ -396,11 +469,16 @@ def rclone_scan_import(req: RcloneScanRequest):
         print(f"[kittlibr-reader][error] source: 'kittlibr-anymd', stage: 'rclone-scan', message: '{str(e)}'")
         raise HTTPException(status_code=500, detail=f"Failed to communicate with rclone: {str(e)}")
 
-    # Filter for ebook items (.epub, .md, .txt)
-    book_items = [
-        item for item in items
-        if not item.get("IsDir", False) and any(item.get("Name", "").lower().endswith(ext) for ext in [".epub", ".md", ".txt"])
-    ]
+    # Filter for ebook items (.epub, .md, .txt), ignoring sidecar markdown files (.anymd/ and *.ext.md)
+    book_items = []
+    for item in items:
+        if item.get("IsDir", False):
+            continue
+        p = item.get("Path") or item.get("Name", "")
+        if ".anymd" in p or p.endswith(".anymd") or p.endswith(".epub.md"):
+            continue
+        if any(item.get("Name", "").lower().endswith(ext) for ext in [".epub", ".md", ".txt"]):
+            book_items.append(item)
 
     detected_count = len(book_items)
     print(f"[kittlibr-anymd][scan] Detected {detected_count} ebook files out of {len(items)} total entries")

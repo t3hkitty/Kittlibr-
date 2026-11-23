@@ -15,9 +15,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-suite:
+    name: Run Unit & Integration Tests (Koodo Reader + AnyMD + WebDAV Fixture)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install System Dependencies (rclone)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rclone
+
+      - name: Install Python & Node Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi uvicorn requests pyyaml xxhash pydantic httpx
+          npm install -g tsx
+
+      - name: Run Test Suite
+        run: |
+          python -m unittest discover tests -v
+
   build-windows:
     name: Build Windows Executable (.exe)
     runs-on: windows-latest
+    needs: test-suite
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

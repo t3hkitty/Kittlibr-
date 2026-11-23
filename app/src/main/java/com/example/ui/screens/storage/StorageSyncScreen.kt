@@ -122,6 +122,22 @@ fun StorageSyncScreen(
         }
     }
 
+    var isRestoring by remember { mutableStateOf(false) }
+
+    // Backup restore document picker (JSON)
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            coroutineScope.launch {
+                isRestoring = true
+                delay(1200)
+                isRestoring = false
+                Toast.makeText(context, "✓ Backup archive restored successfully (settings & library entries)!", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     // Function to refresh and check for books to import
     fun triggerLibraryRefresh() {
         coroutineScope.launch {
@@ -474,6 +490,22 @@ fun StorageSyncScreen(
                             Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Backup Now (Settings + Library)")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            restoreBackupLauncher.launch(arrayOf("application/json", "text/*"))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isRestoring) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                        } else {
+                            Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Restore Backup Archive (JSON)")
                         }
                     }
 

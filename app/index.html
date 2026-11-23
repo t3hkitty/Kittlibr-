@@ -290,6 +290,26 @@
             color: #000;
             font-weight: 700;
         }
+        .chip.new-chip {
+            background: linear-gradient(135deg, #00e676, #00b0ff);
+            color: #000;
+            font-weight: 700;
+            animation: pulse-glow 2.5s infinite alternate;
+        }
+        .chip.glance-chip {
+            background-color: #ffd54f;
+            color: #212121;
+            font-weight: 600;
+        }
+        .chip.in-progress-chip {
+            background: linear-gradient(135deg, #bb86fc, #03dac6);
+            color: #000;
+            font-weight: 700;
+        }
+        @keyframes pulse-glow {
+            from { box-shadow: 0 0 2px rgba(0, 230, 118, 0.4); }
+            to { box-shadow: 0 0 8px rgba(0, 176, 255, 0.7); }
+        }
         .chip:hover { opacity: 0.8; }
         .book-snippet {
             font-size: 0.82rem;
@@ -1500,6 +1520,16 @@
         { id: 4, fieldName: "Trope / Warning", queryValue: "Does the dog die: false", isEnabled: true }
     ];
 
+    // Save books to localStorage
+    function saveLocalBooks() {
+        try {
+            localStorage.setItem('kittlibr_local_books', JSON.stringify(books));
+        } catch (e) {
+            console.warn("Failed to persist books to localStorage:", e);
+        }
+    }
+    const saveBooks = saveLocalBooks;
+
     // Multi-Select State
     let selectedBookIds = new Set();
     let isMultiSelectActive = false;
@@ -1519,7 +1549,38 @@
             rating: 4.9,
             addedDate: "2026-11-20",
             isDemo: true,
-            content: "Chapter 1: The Three Ways to Survive a Ruined World... \n\n'The moment the subway doors opened, I knew my world had changed forever. The monsters from the pages had arrived.'\n\nKittlibr Reader Engine successfully loaded YAML frontmatter and EPUB metadata."
+            content: "Chapter 1: The Three Ways to Survive a Ruined World... \n\n'The moment the subway doors opened, I knew my world had changed forever. The monsters from the pages had arrived.'\n\nKittlibr Reader Engine successfully loaded YAML frontmatter and EPUB metadata.",
+            chapters: [
+                {
+                    id: "ch_1",
+                    title: "Prologue: There are three ways to survive in a ruined world",
+                    html: `<h2>Prologue: There are three ways to survive in a ruined world</h2>
+<p>There are three ways to survive in a ruined world. Now, I have forgotten a few, but one thing is certain. The fact that you who are reading this will survive.</p>
+<p>—Three Ways to Survive in a Ruined World</p>
+<p>A web novel platform filled my smartphone screen. I scrolled down and then up again. How many times had I done this? Truly? "Is this really the end?" I looked again, and the complete mark was unmistakable. The story was over.</p>`,
+                    index: 0
+                },
+                {
+                    id: "ch_2",
+                    title: "Chapter 1: Ep. 1 - Starting the Paid Service, I",
+                    html: `<h2>Chapter 1: Ep. 1 - Starting the Paid Service, I</h2>
+<p>"I'm Dokja." (I usually introduce myself to people like this.)</p>
+<p>"Ah, Mr. Dokja? Do you have an only child?"</p>
+<p>"Yes, but my name isn't written with the Chinese character for only son (獨子). It means a reader (讀者)."</p>
+<p>The 7:00 PM subway was packed. I stared down at my phone. Exactly 7:00 PM, the subway lights blinked once and shut down completely.</p>
+<p>In the sudden pitch darkness, an eerie sound rang out across the carriage: <em>[The free service of the planetary system 8612 has terminated.]</em></p>`,
+                    index: 1
+                },
+                {
+                    id: "ch_3",
+                    title: "Chapter 2: Ep. 1 - Starting the Paid Service, II",
+                    html: `<h2>Chapter 2: Ep. 1 - Starting the Paid Service, II</h2>
+<p>A blue horn, soft downy fur, and a round, fluffy body. Floating in mid-air in front of the train doors was a creature straight out of a fairy tale—a dokkaebi.</p>
+<p><em>[Haha, aren't there too many people in this carriage? Let's begin the first scenario.]</em></p>
+<p>A glowing translucent holographic window snapped into existence before my eyes.</p>`,
+                    index: 2
+                }
+            ]
         },
         {
             id: 2,
@@ -1534,7 +1595,27 @@
             rating: 4.8,
             addedDate: "2026-11-21",
             isDemo: true,
-            content: "Chapter 1: Waking Up in Hell... \n\n'The first thing Sunny noticed was the darkness. Then came the soft chimes of the Nightmare Spell whispering in his ear.'\n\nFull metadata and chapter index loaded."
+            content: "Chapter 1: Waking Up in Hell... \n\n'The first thing Sunny noticed was the darkness. Then came the soft chimes of the Nightmare Spell whispering in his ear.'\n\nFull metadata and chapter index loaded.",
+            chapters: [
+                {
+                    id: "ch_1",
+                    title: "Chapter 1: The Outskirts",
+                    html: `<h2>Chapter 1: The Outskirts</h2>
+<p>Sunny lived in the outskirts of the N5 urban sprawl. It was a bleak concrete jungle where the sun barely pierced through the smog.</p>
+<p>He was sixteen, malnourished, and thoroughly unspecial. Until the fateful night when the voice echoed in his mind.</p>
+<p><em>[Aspirant! Welcome to the Nightmare Spell. Prepare for your First Trial.]</em></p>`,
+                    index: 0
+                },
+                {
+                    id: "ch_2",
+                    title: "Chapter 2: Mountain Path",
+                    html: `<h2>Chapter 2: Mountain Path</h2>
+<p>Cold. Bitter, biting cold that pierced directly to the bone.</p>
+<p>Sunny opened his eyes to find himself kneeling on razor-sharp black stones atop a desolate snowbound peak.</p>
+<p>Beside him, heavy iron chains clinked against the stone. He was bound to a column of ice, and somewhere below in the mountain fog, something gigantic was breathing.</p>`,
+                    index: 1
+                }
+            ]
         }
     ];
 
@@ -1610,6 +1691,22 @@
         if (compCountEl) compCountEl.innerText = `Completed: ${completedCount} (${compPct}%)`;
         if (remCountEl) remCountEl.innerText = `Remaining: ${remainingBooks}`;
         if (totCountEl) totCountEl.innerText = `Total: ${totalBooks}`;
+
+        // Reading Time from active session accumulator (default fallback 15900s = 4h 25m)
+        const storedSeconds = parseInt(localStorage.getItem('kittlibr_total_reading_seconds') || '15900', 10);
+        const timeEl = document.getElementById('stats-time-read');
+        if (timeEl) {
+            const hrs = Math.floor(storedSeconds / 3600);
+            const mins = Math.floor((storedSeconds % 3600) / 60);
+            const secs = storedSeconds % 60;
+            if (hrs > 0) {
+                timeEl.innerText = `${hrs}h ${mins}m`;
+            } else if (mins > 0) {
+                timeEl.innerText = `${mins}m ${secs}s`;
+            } else {
+                timeEl.innerText = `${secs}s`;
+            }
+        }
 
         // Projections
         const dailyEl = document.getElementById('stats-daily-pace');
@@ -1771,10 +1868,42 @@
         `;
     }
 
-    function renderTagsHtml(tags) {
-        return (tags || []).map(t => `
-            <span class="chip ${t === 'Demo' ? 'demo-chip' : ''}" onclick="event.stopPropagation(); filterByTag('${t}')">${t}</span>
-        `).join('');
+    function renderTagsHtml(tags, book = null) {
+        let tagList = Array.isArray(tags) ? [...tags] : [];
+        let prefixBadges = [];
+
+        if (book) {
+            // 1. "New" tag with 24-hour decay calculation
+            const addedTimestamp = book.added_at ? new Date(book.added_at).getTime() : (book.addedDate ? new Date(book.addedDate).getTime() : 0);
+            if (addedTimestamp > 0) {
+                const diffHours = (Date.now() - addedTimestamp) / (1000 * 60 * 60);
+                if (diffHours >= 0 && diffHours < 24) {
+                    const remainingHours = Math.max(1, Math.ceil(24 - diffHours));
+                    prefixBadges.push(`<span class="chip new-chip" title="Added ${Math.round(diffHours)}h ago (${remainingHours}h remaining on New badge)" onclick="event.stopPropagation(); filterByTag('New')">✨ New (${remainingHours}h)</span>`);
+                }
+            }
+
+            // 2. "In Progress" tag if opened in reader
+            if (book.isInProgress || (book.shelf === 'Reading') || tagList.includes('In Progress')) {
+                prefixBadges.push(`<span class="chip in-progress-chip" onclick="event.stopPropagation(); filterByTag('In Progress')">📖 In Progress</span>`);
+                tagList = tagList.filter(t => t !== 'In Progress');
+            } else if (book.isGlanced || tagList.includes('Glance')) {
+                // 3. "Glance" tag if user clicked card or opened More Info modal
+                prefixBadges.push(`<span class="chip glance-chip" onclick="event.stopPropagation(); filterByTag('Glance')">👀 Glance</span>`);
+                tagList = tagList.filter(t => t !== 'Glance');
+            }
+        }
+
+        const standardChips = tagList.map(t => {
+            let chipClass = 'chip';
+            if (t === 'Demo') chipClass += ' demo-chip';
+            else if (t === 'New') chipClass += ' new-chip';
+            else if (t === 'Glance') chipClass += ' glance-chip';
+            else if (t === 'In Progress') chipClass += ' in-progress-chip';
+            return `<span class="${chipClass}" onclick="event.stopPropagation(); filterByTag('${t}')">${t}</span>`;
+        });
+
+        return prefixBadges.concat(standardChips).join('');
     }
 
     function renderListItem(b) {
@@ -1788,7 +1917,7 @@
                 <div class="book-info">
                     <div class="book-title" onclick="event.stopPropagation(); handleBookCardClick(${b.id})">${b.title}</div>
                     <div class="book-meta">${b.author} • Series: ${b.series || 'None'} #${b.seriesIndex || 1} • Shelf: <strong>${b.shelf || 'None'}</strong></div>
-                    <div class="chips-row">${renderTagsHtml(b.tags)}</div>
+                    <div class="chips-row">${renderTagsHtml(b.tags, b)}</div>
                     <div class="book-snippet">${b.snippet || ''}</div>
                 </div>
             </div>
@@ -1818,7 +1947,7 @@
                 </div>
                 <div class="book-title" style="font-size: 0.95rem;" title="${b.title}">${b.title}</div>
                 <div class="book-meta" style="font-size: 0.8rem;">${b.author}</div>
-                <div class="chips-row">${renderTagsHtml(b.tags.slice(0, 3))}</div>
+                <div class="chips-row">${renderTagsHtml((b.tags || []).slice(0, 3), b)}</div>
             </div>
         `;
     }
@@ -1839,7 +1968,7 @@
                         </div>
                         <div class="book-title" style="margin-top: 0.4rem;">${b.title}</div>
                         <div class="book-meta">${b.author} • Series: ${b.series || 'Standalone'}</div>
-                        <div class="chips-row">${renderTagsHtml(b.tags)}</div>
+                        <div class="chips-row">${renderTagsHtml(b.tags, b)}</div>
                     </div>
                 </div>
                 <div class="book-snippet" style="-webkit-line-clamp: 3;">${b.snippet || ''}</div>
@@ -1857,7 +1986,7 @@
                 </div>
                 <div class="book-title" style="font-size: 1rem;">${b.title}</div>
                 <div class="book-meta">${b.author}</div>
-                <div class="chips-row">${renderTagsHtml(b.tags.slice(0, 3))}</div>
+                <div class="chips-row">${renderTagsHtml((b.tags || []).slice(0, 3), b)}</div>
             </div>
         `;
     }
@@ -1868,6 +1997,15 @@
             toggleBookSelection(bookId);
             return;
         }
+
+        // Tag with Glance on click / peek
+        const book = books.find(b => b.id === bookId);
+        if (book) {
+            book.isGlanced = true;
+            book.lastViewedAt = Date.now();
+            saveLocalBooks();
+        }
+
         if (clickAction === 'auto_open') {
             openReader(bookId);
         } else {
@@ -1986,7 +2124,7 @@
         document.getElementById('more-info-meta-author').innerText = 'Author: ' + book.author;
         document.getElementById('more-info-meta-series').innerText = 'Series: ' + (book.series || 'Standalone') + ' #' + (book.seriesIndex || 1);
         document.getElementById('more-info-desc').innerText = book.snippet || 'No synopsis available.';
-        document.getElementById('more-info-chips').innerHTML = renderTagsHtml(book.tags);
+        document.getElementById('more-info-chips').innerHTML = renderTagsHtml(book.tags, book);
 
         document.getElementById('more-info-read-btn').onclick = () => { closeMoreInfoModal(); openReader(book.id); };
         document.getElementById('more-info-edit-btn').onclick = () => { closeMoreInfoModal(); openEditModal(book.id); };
@@ -3010,6 +3148,8 @@
     // Active Reader State
     let currentReadingBook = null;
     let currentChapterIndex = 0;
+    let readingTimerInterval = null;
+    let readerSessionStart = 0;
 
     // Reader View Modal & Navigation
     function openReader(bookId) {
@@ -3017,6 +3157,32 @@
         if (!book) return;
 
         currentReadingBook = book;
+
+        // Tag as In Progress when book is opened & update shelf if To-Read
+        book.isInProgress = true;
+        if (!book.shelf || book.shelf === 'To-Read') {
+            book.shelf = 'Reading';
+        }
+        if (Array.isArray(book.tags)) {
+            if (!book.tags.includes('In Progress')) book.tags.push('In Progress');
+            book.tags = book.tags.filter(t => t !== 'Glance');
+        }
+        saveLocalBooks();
+        renderLibrary();
+
+        // Start active reading session timer
+        if (readingTimerInterval) clearInterval(readingTimerInterval);
+        readerSessionStart = Date.now();
+        readingTimerInterval = setInterval(() => {
+            const elapsedSeconds = Math.floor((Date.now() - readerSessionStart) / 1000);
+            if (elapsedSeconds > 0 && elapsedSeconds % 10 === 0) {
+                // Periodically accumulate reading seconds into localStorage
+                const total = parseInt(localStorage.getItem('kittlibr_total_reading_seconds') || '15900', 10);
+                localStorage.setItem('kittlibr_total_reading_seconds', String(total + 10));
+                readerSessionStart = Date.now();
+            }
+        }, 1000);
+
         const errBanner = document.getElementById('reader-error-banner');
         if (errBanner) {
             errBanner.style.display = 'none';
@@ -3167,6 +3333,19 @@
     }
 
     function closeReader() {
+        if (readingTimerInterval) {
+            clearInterval(readingTimerInterval);
+            readingTimerInterval = null;
+        }
+        if (readerSessionStart > 0) {
+            const finalElapsed = Math.floor((Date.now() - readerSessionStart) / 1000);
+            if (finalElapsed > 0) {
+                const total = parseInt(localStorage.getItem('kittlibr_total_reading_seconds') || '15900', 10);
+                localStorage.setItem('kittlibr_total_reading_seconds', String(total + finalElapsed));
+            }
+            readerSessionStart = 0;
+        }
+
         if (currentReadingBook) {
             const canonicalKey = currentReadingBook.canonicalId || currentReadingBook.md5 || String(currentReadingBook.id);
             const readerBody = document.getElementById('reader-body');
@@ -3175,6 +3354,8 @@
                 scrollTop: readerBody ? readerBody.scrollTop : 0,
                 updatedAt: Date.now()
             });
+            saveLocalBooks();
+            renderLibrary();
         }
         currentReadingBook = null;
         document.getElementById('reader-modal').style.display = 'none';
@@ -3194,11 +3375,11 @@
                 targetBook.chapters = unpacked.chapters;
                 targetBook.content = unpacked.chapters.length > 0 ? unpacked.chapters[0].html : "";
                 targetBook.canonicalId = unpacked.canonicalId || targetBook.canonicalId;
-                saveBooks();
+                saveLocalBooks();
                 currentReadingBook = targetBook;
                 currentChapterIndex = 0;
                 renderCurrentChapter();
-                renderCatalog();
+                renderLibrary();
             }
         } catch (err) {
             alert("Failed to unpack EPUB: " + err.message);

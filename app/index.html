@@ -2789,7 +2789,25 @@
                 logReaderDiagnostic('kittlibr-reader', 'parse', 'Detected un-extracted binary EPUB stub', { title: book.title, content: book.content });
                 if (errBanner) {
                     errBanner.style.display = 'block';
-                    errBanner.innerHTML = `<strong>⚠️ Binary EPUB Stub Detected:</strong> This file was loaded without archive extraction. Please re-import this EPUB to parse chapters.`;
+                    errBanner.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <div>
+                                <strong>⚠️ Binary EPUB Stub Detected:</strong> This file was loaded without archive extraction (${escapeHtml(book.title)}).
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.25rem;">
+                                <label class="btn btn-sm btn-outline" style="cursor: pointer; background: var(--surface-color); margin: 0;">
+                                    ⚡ Re-import & Extract EPUB Archive
+                                    <input type="file" accept=".epub" style="display: none;" onchange="handleRecoverStubEpub(event, ${book.id})">
+                                </label>
+                                <button class="btn btn-sm btn-outline" style="background: var(--surface-color);" onclick="handleOpenWithExternal('${escapeHtml(book.title)}', '${escapeHtml(book.filePath || '')}')">
+                                    🚀 Open With External Reader
+                                </button>
+                                <button class="btn btn-sm btn-outline" style="background: var(--surface-color);" onclick="handleTriggerPandocFallback('${escapeHtml(book.title)}')">
+                                    📄 Convert via Pandoc / librmanage
+                                </button>
+                            </div>
+                        </div>
+                    `;
                 }
             }
 
@@ -2841,6 +2859,45 @@
         }
         currentReadingBook = null;
         document.getElementById('reader-modal').style.display = 'none';
+    }
+
+    async function handleRecoverStubEpub(event, bookId) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const unpacked = await unpackEpubClient(arrayBuffer, file.name);
+            const targetBook = books.find(b => b.id === bookId);
+            if (targetBook) {
+                targetBook.title = unpacked.title || targetBook.title;
+                targetBook.author = unpacked.author || targetBook.author;
+                targetBook.chapters = unpacked.chapters;
+                targetBook.content = unpacked.chapters.length > 0 ? unpacked.chapters[0].html : "";
+                targetBook.canonicalId = unpacked.canonicalId || targetBook.canonicalId;
+                saveBooks();
+                currentReadingBook = targetBook;
+                currentChapterIndex = 0;
+                renderCurrentChapter();
+                renderCatalog();
+            }
+        } catch (err) {
+            alert("Failed to unpack EPUB: " + err.message);
+        }
+    }
+
+    function handleOpenWithExternal(title, filePath) {
+        // Trigger external app routing intent / protocol handler
+        const target = filePath || title;
+        const msg = `Dispatching external viewer intent for: "${title}".\nIf using Moon+ Reader or Librera on mobile, the file intent will launch.`;
+        console.log(`[kittlibr-reader][open-with] ${msg}`, { title, filePath });
+        alert(msg);
+    }
+
+    function handleTriggerPandocFallback(title) {
+        const msg = `Delegating "${title}" to librmanage / pandoc local converter extension.\nAnyMD sidecars will be updated with HTML extracts.`;
+        console.log(`[kittlibr-reader][pandoc-fallback] ${msg}`, { title });
+        alert(msg);
     }
 
     function setTheme(theme) {

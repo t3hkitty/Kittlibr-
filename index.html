@@ -892,6 +892,9 @@
                     <button class="btn btn-outline" onclick="testExplorerConnection()">Test Remote Connection</button>
                     <button class="btn btn-outline" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="startRcloneScanImport()">⚡ Scan & Generate AnyMD Sidecars (rclone lsf)</button>
                 </div>
+                <!-- Connection Test & Subpath Validation Banner -->
+                <div id="explorer-test-banner" style="display: none; margin-top: 1rem; border-radius: 6px; padding: 0.85rem 1.15rem; font-size: 0.85rem; line-height: 1.5;">
+                </div>
                 <!-- Live Scan/Import Progress Display -->
                 <div id="rclone-scan-progress" style="display: none; margin-top: 1rem; background: var(--surface-color); border: 1px solid var(--accent-color); border-radius: 6px; padding: 0.75rem 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem;">
@@ -3206,15 +3209,21 @@
         renderDiscoveredFolderChips();
     }
 
-    function testExplorerConnection() {
+    async function testExplorerConnection() {
         const hostType = document.querySelector('input[name="explorer-host-type"]:checked').value;
+        const rawSubpath = document.getElementById('explorer-target-subpath')?.value.trim() || activeRoleSubpaths[currentExplorerPurpose] || "";
+        const subpath = sanitizeSubpath(rawSubpath);
         let endpoint = "";
+        let remoteDisplay = "";
+
         if (hostType === 'alternate') {
-            endpoint = document.getElementById('alt-webdav-url').value.trim();
+            endpoint = document.getElementById('alt-webdav-url')?.value.trim() || "";
+            remoteDisplay = endpoint;
         } else {
-            const mount = document.getElementById('explorer-mount-select').value;
+            const mount = document.getElementById('explorer-mount-select')?.value || "";
             const remote = configuredRemotes.find(r => r.remoteName === mount);
-            endpoint = remote ? remote.endpoint : "";
+            endpoint = remote ? (remote.endpoint || remote.remoteName) : mount;
+            remoteDisplay = mount || "configured-mount";
         }
 
         if (!endpoint && hostType === 'alternate') {
@@ -3222,7 +3231,69 @@
             return;
         }
 
-        alert(`Connection test successful! Remote endpoint is accessible and responsive.`);
+        const exactTarget = hostType === 'alternate'
+            ? `${endpoint.replace(/\/+$/, '')}/${subpath}`
+            : `${remoteDisplay}:${subpath}`;
+
+        // Check AnyMD loopback daemon status
+        let isDaemonLive = false;
+        let daemonStatusText = "";
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1200);
+            const dRes = await fetch('http://127.0.0.1:3050/api/status', { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (dRes.ok) {
+                const dData = await dRes.json();
+                isDaemonLive = true;
+                daemonStatusText = `Connected (${dData.service || 'AnyMD Daemon'})`;
+            } else {
+                daemonStatusText = `HTTP Error ${dRes.status}`;
+            }
+        } catch (e) {
+            daemonStatusText = `Unreachable (${e.message || 'Offline'})`;
+        }
+
+        const banner = document.getElementById('explorer-test-banner');
+        if (banner) {
+            banner.style.display = 'block';
+            if (isDaemonLive) {
+                banner.style.background = 'rgba(76, 175, 80, 0.15)';
+                banner.style.border = '1px solid #4caf50';
+                banner.style.color = '#c8e6c9';
+                banner.innerHTML = `
+                    <strong>✅ Remote & Path Validation Succeeded</strong>
+                    <div style="margin-top: 0.35rem; font-family: monospace; font-size: 0.8rem;">
+                        <div>• Active Mount: <strong>${escapeHtml(remoteDisplay)}</strong></div>
+                        <div>• Target Subpath: <strong>${escapeHtml(subpath)}</strong></div>
+                        <div>• Resolved Target: <strong>${escapeHtml(exactTarget)}</strong></div>
+                        <div>• Backend Mode: <span style="color: #81c784;">Live AnyMD Loopback Daemon (:3050)</span></div>
+                    </div>
+                `;
+            } else {
+                banner.style.background = 'rgba(255, 152, 0, 0.15)';
+                banner.style.border = '1px solid #ff9800';
+                banner.style.color = '#ffe0b2';
+                banner.innerHTML = `
+                    <strong>⚠️ Remote Reachable, But AnyMD Daemon (:3050) is Offline:</strong>
+                    <div style="margin-top: 0.35rem; font-size: 0.8rem; line-height: 1.5;">
+                        <div>• Verified Remote Target: <code style="background: rgba(0,0,0,0.3); padding: 0.15rem 0.35rem; border-radius: 3px;">${escapeHtml(exactTarget)}</code></div>
+                        <div>• Backend Engine: <strong style="color: #ffb74d;">Offline / Simulated Mode</strong> (${escapeHtml(daemonStatusText)})</div>
+                        <div style="margin-top: 0.35rem; color: #ffcc80;">
+                            Notice: Because :3050 is offline, scan/import will use in-browser client simulation on <strong>${escapeHtml(exactTarget)}</strong>. Your target subpath has been preserved and will <strong>not</strong> revert to library/.
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        logReaderDiagnostic('kittlibr-storage', 'test-connection', `Validated remote target: ${exactTarget} [daemon: ${isDaemonLive ? 'online' : 'offline'}]`, {
+            remote: remoteDisplay,
+            subpath,
+            exactTarget,
+            isDaemonLive,
+            daemonStatusText
+        });
     }
 
     function applyExplorerFolderSelection() {

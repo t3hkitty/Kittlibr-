@@ -777,14 +777,18 @@
                 
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem;">
                     <!-- Local Library Folder / Ebook File Chooser -->
+                    <!-- Local Library Folder / Ebook File Chooser -->
                     <div style="background: var(--surface-variant); border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; justify-content: space-between; gap: 0.6rem;">
                         <div>
                             <strong style="display: block; font-size: 0.9rem;">📚 Main Library</strong>
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">Pick local eBooks (.epub, .md) or sync with remote mount.</span>
+                            <div style="font-size: 0.8rem; color: var(--primary-color); margin-top: 0.3rem;">
+                                Active Remote Path: <code id="active-path-library" style="background: var(--surface-color); padding: 0.15rem 0.4rem; border-radius: 4px;">kittlib/epub</code>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-sm" onclick="document.getElementById('local-library-file-picker').click()">📁 Pick Local Ebooks</button>
-                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('library')">☁️ Remote Folder</button>
+                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('library')">☁️ Configure Remote Folder</button>
                             <input type="file" id="local-library-file-picker" accept=".epub,.md,.txt" multiple style="display: none;" onchange="handleLocalFilesSelected(event)">
                         </div>
                     </div>
@@ -794,10 +798,13 @@
                         <div>
                             <strong style="display: block; font-size: 0.9rem;">💾 Cloud & Local Backup</strong>
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">Restore full vault from local snapshot file or configure cloud folder.</span>
+                            <div style="font-size: 0.8rem; color: var(--primary-color); margin-top: 0.3rem;">
+                                Active Remote Path: <code id="active-path-backup" style="background: var(--surface-color); padding: 0.15rem 0.4rem; border-radius: 4px;">backups/kittlibr</code>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-sm" onclick="document.getElementById('backup-restore-file-input').click()">📦 Restore Local Backup</button>
-                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('backup')">☁️ Remote Folder</button>
+                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('backup')">☁️ Configure Remote Folder</button>
                         </div>
                     </div>
 
@@ -806,10 +813,13 @@
                         <div>
                             <strong style="display: block; font-size: 0.9rem;">📥 Downloads & Staging</strong>
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">Select incoming folder for chapter scrapers and webnovels.</span>
+                            <div style="font-size: 0.8rem; color: var(--primary-color); margin-top: 0.3rem;">
+                                Active Remote Path: <code id="active-path-downloads" style="background: var(--surface-color); padding: 0.15rem 0.4rem; border-radius: 4px;">downloads</code>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-sm" onclick="document.getElementById('local-downloads-file-picker').click()">📂 Select Local Staging</button>
-                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('downloads')">☁️ Remote Folder</button>
+                            <button class="btn btn-outline btn-sm" onclick="openRemoteExplorer('downloads')">☁️ Configure Remote Folder</button>
                             <input type="file" id="local-downloads-file-picker" webkitdirectory directory multiple style="display: none;" onchange="handleLocalDirectorySelected(event)">
                         </div>
                     </div>
@@ -864,11 +874,14 @@
                 <!-- Folder Tree Exploration & Selection -->
                 <div class="form-group">
                     <label>Target Subpath on Remote</label>
-                    <input type="text" id="explorer-target-subpath" class="form-control" placeholder="e.g. library or downloads/incoming">
+                    <input type="text" id="explorer-target-subpath" class="form-control" placeholder="e.g. kittlib/epub or library or downloads/incoming" oninput="saveCurrentTargetSubpath(this.value)">
                 </div>
 
                 <div style="margin-bottom: 1rem;">
-                    <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.4rem;">Discovered Remote Directories:</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin: 0;">Discovered Remote Directories:</label>
+                        <button class="btn btn-outline btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="scanRemoteDirectoriesForActiveMount()">🔍 Discover Live Folders (PROPFIND)</button>
+                    </div>
                     <div id="explorer-folder-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                         <!-- Folder chips -->
                     </div>
@@ -2906,15 +2919,64 @@
     }
 
     // Rclone Remote Setup Wizard & Storage functions
-    const DEFAULT_ROLE_PATHS = {
-        library: "library",
+    const STORAGE_REMOTES_KEY = "kittlibr_configured_remotes_v1";
+    const ACTIVE_SUBPATHS_KEY = "kittlibr_active_role_subpaths_v1";
+
+    // Dynamic role subpaths persisted in localStorage
+    let activeRoleSubpaths = {
+        library: "kittlib/epub",
         backup: "backups/kittlibr",
         downloads: "downloads"
     };
 
     let configuredRemotes = [];
     let currentExplorerPurpose = "library";
-    const SAMPLE_DISCOVERED_FOLDERS = ["library", "backups", "downloads", "staging", "novels", "epubs", "incoming"];
+    let discoveredRemoteFolders = [];
+
+    function loadStorageSettings() {
+        try {
+            const rawRemotes = localStorage.getItem(STORAGE_REMOTES_KEY);
+            if (rawRemotes) {
+                const parsed = JSON.parse(rawRemotes);
+                if (Array.isArray(parsed)) configuredRemotes = parsed;
+            }
+            const rawPaths = localStorage.getItem(ACTIVE_SUBPATHS_KEY);
+            if (rawPaths) {
+                const parsedPaths = JSON.parse(rawPaths);
+                if (parsedPaths && typeof parsedPaths === 'object') {
+                    activeRoleSubpaths = { ...activeRoleSubpaths, ...parsedPaths };
+                }
+            }
+        } catch (e) {
+            console.warn("Could not load stored remote configurations", e);
+        }
+        updateRoleCardsSubpathDisplay();
+    }
+
+    function saveStorageSettings() {
+        try {
+            localStorage.setItem(STORAGE_REMOTES_KEY, JSON.stringify(configuredRemotes));
+            localStorage.setItem(ACTIVE_SUBPATHS_KEY, JSON.stringify(activeRoleSubpaths));
+        } catch (e) {
+            console.warn("Could not save remote configurations", e);
+        }
+    }
+
+    function updateRoleCardsSubpathDisplay() {
+        const libEl = document.getElementById('active-path-library');
+        const bkpEl = document.getElementById('active-path-backup');
+        const dwnEl = document.getElementById('active-path-downloads');
+        if (libEl) libEl.innerText = activeRoleSubpaths.library || '(not set)';
+        if (bkpEl) bkpEl.innerText = activeRoleSubpaths.backup || '(not set)';
+        if (dwnEl) dwnEl.innerText = activeRoleSubpaths.downloads || '(not set)';
+    }
+
+    function saveCurrentTargetSubpath(val) {
+        if (!currentExplorerPurpose) return;
+        activeRoleSubpaths[currentExplorerPurpose] = sanitizeSubpath(val);
+        saveStorageSettings();
+        updateRoleCardsSubpathDisplay();
+    }
 
     function sanitizeSubpath(raw) {
         return (raw || "").trim().replace(/^\/+|\/+$/g, "").replace(/\\/g, "/");
@@ -2924,7 +2986,7 @@
         const baseRemote = (config.remoteName || "").trim().replace(/:+$/, "");
         const subpath = config.role === "custom"
             ? sanitizeSubpath(config.customPath || "")
-            : DEFAULT_ROLE_PATHS[config.role] || "";
+            : (activeRoleSubpaths[config.role] || "");
         const rcloneRemotePath = subpath ? `${baseRemote}:${subpath}` : `${baseRemote}:`;
         return { subpath, rcloneRemotePath };
     }
@@ -2953,7 +3015,7 @@
         if (select) {
             select.innerHTML = configuredRemotes.length === 0
                 ? `<option value="">(No mounts configured yet - use Alternate Host)</option>`
-                : configuredRemotes.map(r => `<option value="${r.remoteName}">${r.remoteName} (${r.type} - ${r.endpoint || 'local'})</option>`).join('');
+                : configuredRemotes.map(r => `<option value="${r.remoteName}">${r.remoteName} (${r.type} - ${r.endpoint || 'mount'})</option>`).join('');
         }
 
         if (configuredRemotes.length === 0) {
@@ -2975,6 +3037,7 @@
 
     function deleteRemote(index) {
         configuredRemotes.splice(index, 1);
+        saveStorageSettings();
         renderRcloneRemotes();
     }
 
@@ -2992,7 +3055,13 @@
 
         const { subpath, rcloneRemotePath } = resolveWebDavTarget({ remoteName, role, customPath });
 
-        configuredRemotes.push({ remoteName, type, endpoint, role, subpath, target: rcloneRemotePath });
+        const existingIdx = configuredRemotes.findIndex(r => r.remoteName === remoteName);
+        if (existingIdx >= 0) {
+            configuredRemotes[existingIdx] = { remoteName, type, endpoint, role, subpath, target: rcloneRemotePath };
+        } else {
+            configuredRemotes.push({ remoteName, type, endpoint, role, subpath, target: rcloneRemotePath });
+        }
+        saveStorageSettings();
         renderRcloneRemotes();
         alert(`Successfully added rclone remote '${remoteName}' for '${role}' [${rcloneRemotePath}]!`);
     }
@@ -3017,7 +3086,11 @@
 
         if (title) title.innerText = purposeTitles[purpose] || "Remote Folder Explorer";
         if (desc) desc.innerText = purposeDescs[purpose] || "";
-        if (subpathInput) subpathInput.value = DEFAULT_ROLE_PATHS[purpose] || "";
+        
+        // Never wipe or reset the user's configured subpath to hardcoded defaults
+        if (subpathInput) {
+            subpathInput.value = activeRoleSubpaths[purpose] || "";
+        }
 
         renderDiscoveredFolderChips();
         if (panel) panel.style.display = 'block';
@@ -3047,12 +3120,89 @@
     function renderDiscoveredFolderChips() {
         const list = document.getElementById('explorer-folder-list');
         if (!list) return;
-        list.innerHTML = SAMPLE_DISCOVERED_FOLDERS.map(f => `
-            <span class="chip" onclick="document.getElementById('explorer-target-subpath').value = '${f}'">📁 ${f}</span>
+
+        // Use dynamically discovered folders, or fallback to current configured path + detected paths
+        const currentPath = activeRoleSubpaths[currentExplorerPurpose] || document.getElementById('explorer-target-subpath')?.value || "";
+        const foldersToShow = [...new Set([
+            ...(currentPath ? [currentPath] : []),
+            ...discoveredRemoteFolders
+        ])].filter(Boolean);
+
+        if (foldersToShow.length === 0) {
+            list.innerHTML = `<span style="font-size: 0.8rem; color: var(--text-secondary);">No remote directories discovered yet. Type a subpath above or click 'Discover Live Folders'.</span>`;
+            return;
+        }
+
+        list.innerHTML = foldersToShow.map(f => `
+            <span class="chip" style="cursor: pointer;" onclick="document.getElementById('explorer-target-subpath').value = '${escapeHtml(f)}'; saveCurrentTargetSubpath('${escapeHtml(f)}')">📁 ${escapeHtml(f)}</span>
         `).join('');
     }
 
     function refreshDiscoveredFolders() {
+        renderDiscoveredFolderChips();
+    }
+
+    async function scanRemoteDirectoriesForActiveMount() {
+        const list = document.getElementById('explorer-folder-list');
+        if (list) list.innerHTML = `<span style="font-size: 0.8rem; color: var(--accent-color);">Scanning remote for directory tree via PROPFIND...</span>`;
+
+        const hostType = document.querySelector('input[name="explorer-host-type"]:checked')?.value || 'configured';
+        let endpoint = "";
+        let user = "";
+        let pass = "";
+
+        if (hostType === 'alternate') {
+            endpoint = document.getElementById('alt-webdav-url')?.value.trim() || "";
+            user = document.getElementById('alt-webdav-user')?.value.trim() || "";
+            pass = document.getElementById('alt-webdav-pass')?.value.trim() || "";
+        } else {
+            const mount = document.getElementById('explorer-mount-select')?.value;
+            const remote = configuredRemotes.find(r => r.remoteName === mount);
+            endpoint = remote ? remote.endpoint : "";
+        }
+
+        if (!endpoint || endpoint === 'mount') {
+            endpoint = document.getElementById('webdav-url')?.value.trim() || "";
+            user = document.getElementById('webdav-user')?.value.trim() || "";
+            pass = document.getElementById('webdav-pass')?.value.trim() || "";
+        }
+
+        const foundDirs = new Set();
+        const currentSubpath = document.getElementById('explorer-target-subpath')?.value.trim() || activeRoleSubpaths[currentExplorerPurpose] || "";
+        if (currentSubpath) foundDirs.add(currentSubpath);
+
+        if (endpoint && endpoint.startsWith('http')) {
+            try {
+                const targetEndpoint = endpoint.replace(/\/+$/, '');
+                const headers = { 'Depth': '1', 'Content-Type': 'application/xml' };
+                if (user && pass) headers['Authorization'] = 'Basic ' + btoa(user + ':' + pass);
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000);
+                const resp = await fetch(targetEndpoint, { method: 'PROPFIND', headers, signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (resp.ok || resp.status === 207) {
+                    const xml = await resp.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(xml, 'text/xml');
+                    const responses = Array.from(doc.querySelectorAll('d\\:response, response'));
+                    responses.forEach(r => {
+                        const href = r.querySelector('d\\:href, href')?.textContent || '';
+                        const isDir = Boolean(r.querySelector('d\\:collection, collection'));
+                        if (isDir && href) {
+                            const segs = href.split('/').filter(Boolean);
+                            const name = decodeURIComponent(segs[segs.length - 1] || '');
+                            if (name && !name.startsWith('.')) foundDirs.add(name);
+                        }
+                    });
+                }
+            } catch (err) {
+                console.warn("[kittlibr-storage] Live folder scan hit CORS/offline fallback", err);
+            }
+        }
+
+        discoveredRemoteFolders = Array.from(foundDirs);
         renderDiscoveredFolderChips();
     }
 
@@ -3076,9 +3226,13 @@
     }
 
     function applyExplorerFolderSelection() {
-        const subpath = document.getElementById('explorer-target-subpath').value.trim();
+        const rawSubpath = document.getElementById('explorer-target-subpath').value.trim();
+        const subpath = sanitizeSubpath(rawSubpath);
         const hostType = document.querySelector('input[name="explorer-host-type"]:checked').value;
         let targetHost = "";
+
+        // Update active purpose path and persist immediately
+        activeRoleSubpaths[currentExplorerPurpose] = subpath;
 
         if (hostType === 'alternate') {
             const url = document.getElementById('alt-webdav-url').value.trim();
@@ -3092,33 +3246,39 @@
                 type: "webdav",
                 endpoint: targetHost,
                 role: currentExplorerPurpose,
-                subpath: sanitizeSubpath(subpath),
-                target: `${targetHost}/${sanitizeSubpath(subpath)}`
+                subpath: subpath,
+                target: `${targetHost}/${subpath}`
             });
         } else {
             const mount = document.getElementById('explorer-mount-select').value;
-            if (!mount) {
-                alert("No active mount selected. Please select a mount or switch to 'Add Different Host'.");
-                return;
+            if (mount) {
+                const existingIdx = configuredRemotes.findIndex(r => r.remoteName === mount && r.role === currentExplorerPurpose);
+                if (existingIdx >= 0) {
+                    configuredRemotes[existingIdx].subpath = subpath;
+                    configuredRemotes[existingIdx].target = `${mount}:${subpath}`;
+                } else {
+                    configuredRemotes.push({
+                        remoteName: mount,
+                        type: "webdav",
+                        endpoint: "mount",
+                        role: currentExplorerPurpose,
+                        subpath: subpath,
+                        target: `${mount}:${subpath}`
+                    });
+                }
             }
-            configuredRemotes.push({
-                remoteName: mount,
-                type: "webdav",
-                endpoint: "mount",
-                role: currentExplorerPurpose,
-                subpath: sanitizeSubpath(subpath),
-                target: `${mount}:${sanitizeSubpath(subpath)}`
-            });
         }
 
+        saveStorageSettings();
+        updateRoleCardsSubpathDisplay();
         renderRcloneRemotes();
-        alert(`Successfully assigned remote directory '${subpath}' for ${currentExplorerPurpose}!`);
+        alert(`Successfully assigned and saved remote directory '${subpath}' for ${currentExplorerPurpose}!`);
         closeRemoteExplorer();
     }
 
     // Targeted rclone lsf scan & AnyMD sidecar generator with live progress
     async function startRcloneScanImport() {
-        const subpath = document.getElementById('explorer-target-subpath').value.trim();
+        const subpath = sanitizeSubpath(document.getElementById('explorer-target-subpath').value.trim() || activeRoleSubpaths[currentExplorerPurpose] || "");
         const hostType = document.querySelector('input[name="explorer-host-type"]:checked').value;
         const progressBox = document.getElementById('rclone-scan-progress');
         const progressBar = document.getElementById('scan-progress-bar');
@@ -3136,10 +3296,11 @@
 
         if (progressBox) progressBox.style.display = 'block';
         if (progressBar) progressBar.style.width = '10%';
-        if (progressStatus) progressStatus.innerText = `Starting targeted rclone lsf listing on ${remoteFs}${subpath}...`;
+        const fullScanTarget = `${remoteFs}${subpath}`;
+        if (progressStatus) progressStatus.innerText = `Starting targeted rclone lsf listing on ${fullScanTarget}...`;
         if (progressEta) progressEta.innerText = 'connecting...';
 
-        logReaderDiagnostic('kittlibr-storage', 'scan-init', `Initiating rclone lsf scan on ${remoteFs}${subpath}`);
+        logReaderDiagnostic('kittlibr-storage', 'scan-init', `Initiating rclone lsf scan on ${fullScanTarget}`);
 
         // Try AnyMD loopback daemon first
         try {
@@ -3158,8 +3319,8 @@
                 if (progressBar) progressBar.style.width = '100%';
                 if (progressStatus) progressStatus.innerText = `✅ Scan complete! Detected ${data.detected_count} files, imported ${data.imported_count} AnyMD sidecars.`;
                 if (progressEta) progressEta.innerText = '0m left';
-                logReaderDiagnostic('kittlibr-storage', 'scan-complete', `Generated AnyMD sidecars for ${data.imported_count} books`, data);
-                alert(`Successfully scanned remote ${remoteFs}${subpath}!\nDetected: ${data.detected_count} files\nImported: ${data.imported_count} AnyMD YAML sidecars.`);
+                logReaderDiagnostic('kittlibr-storage', 'scan-complete', `Generated AnyMD sidecars for ${data.imported_count} books on ${fullScanTarget}`, data);
+                alert(`Successfully scanned remote ${fullScanTarget}!\nDetected: ${data.detected_count} files\nImported: ${data.imported_count} AnyMD YAML sidecars.`);
                 return;
             }
         } catch (e) {
@@ -3168,7 +3329,7 @@
 
         // Static Client / Offline simulation mode with real-time UI updates
         const sampleCount = 42;
-        logReaderDiagnostic('kittlibr-storage', 'scan-progress', `Detected ${sampleCount} files via targeted rclone lsf listing`);
+        logReaderDiagnostic('kittlibr-storage', 'scan-progress', `Detected ${sampleCount} files via targeted rclone lsf listing on ${fullScanTarget}`);
         const startTime = Date.now();
 
         for (let i = 1; i <= sampleCount; i++) {
@@ -3184,12 +3345,12 @@
             if (progressEta) progressEta.innerText = timeStr;
 
             if (i % 10 === 0 || i === sampleCount) {
-                logReaderDiagnostic('kittlibr-storage', 'sidecar-write', `Imported AnyMD YAML sidecar for item ${i}/${sampleCount} (${timeStr})`);
+                logReaderDiagnostic('kittlibr-storage', 'sidecar-write', `Imported AnyMD YAML sidecar for item ${i}/${sampleCount} (${timeStr}) on ${fullScanTarget}`);
             }
         }
 
         if (progressStatus) progressStatus.innerText = `✅ Import finished: detected ${sampleCount} files, imported ${sampleCount}/${sampleCount}, 0m left`;
-        alert(`Rclone lsf import completed!\nGenerated .anymd YAML sidecars with full rclone metadata for ${sampleCount} files.`);
+        alert(`Rclone lsf import completed for ${fullScanTarget}!\nGenerated .anymd YAML sidecars with full rclone metadata for ${sampleCount} files.`);
     }
 
     function saveWebdavDirect() {
@@ -3442,6 +3603,7 @@
     if (customInput) customInput.addEventListener('input', updateTargetPreview);
 
     loadInstalledExtensions();
+    loadStorageSettings();
     // Initial render
     renderLibrary();
     renderSubscriptions();

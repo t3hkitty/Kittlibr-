@@ -1,4 +1,4 @@
-name: Build Kittlibr (APK and Web Pages)
+name: Build Kittlibr (APK, Windows EXE, and Web Pages)
 
 on:
   push:
@@ -46,6 +46,34 @@ jobs:
       - name: Run Test Suite
         run: |
           python -m unittest discover tests -v
+
+  build-windows:
+    name: Build Windows Executable (.exe)
+    runs-on: windows-latest
+    needs: test-suite
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller fastapi uvicorn requests pyyaml xxhash pydantic httpx
+
+      - name: Build Kittlibr Windows EXE
+        run: |
+          pyinstaller --onefile --noconsole --name "Kittlibr" --add-data "app;app" --add-data "src;src" start_kittlibr.py
+
+      - name: Upload Windows Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kittlibr-Windows-x64
+          path: dist/Kittlibr.exe
 
   build-apk:
     name: Build Android APK

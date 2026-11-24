@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import uvicorn
 import re
 import os
@@ -39,17 +39,29 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.auth.google_oauth import (
-    GoogleOAuthManager,
-    SCOPE_PRESETS,
-    resolve_scopes,
-    get_token_storage_path
-)
-from src.vaultr.pipeline import (
-    VaultrPipeline,
-    VaultrConfig,
-    SingleFlightLock
-)
+try:
+    from src.auth.google_oauth import (
+        GoogleOAuthManager,
+        SCOPE_PRESETS,
+        resolve_scopes,
+        get_token_storage_path
+    )
+except ImportError:
+    GoogleOAuthManager = None
+    SCOPE_PRESETS = {}
+    def resolve_scopes(scopes): return []
+    def get_token_storage_path(): return None
+
+try:
+    from src.vaultr.pipeline import (
+        VaultrPipeline,
+        VaultrConfig,
+        SingleFlightLock
+    )
+except ImportError:
+    VaultrPipeline = None
+    VaultrConfig = None
+    SingleFlightLock = None
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -198,7 +210,7 @@ class AnyMDEngine:
                 "shard_index": i,
                 "batch_size": len(batch),
                 "records": batch,
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.now(timezone.utc).isoformat()
             }
             self.atomic_write_yaml(shard_path, shard_data)
             manifest_shards.append({
@@ -212,7 +224,7 @@ class AnyMDEngine:
             "total_shards": total_shards,
             "shard_batch_limit": SHARD_SIZE,
             "shards": manifest_shards,
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         }
         self.atomic_write_yaml(anymd_dir / "manifest.yaml", manifest)
         return manifest
@@ -264,17 +276,30 @@ def get_api_status(remote: Optional[str] = None, path: Optional[str] = None):
     if path is not None:
         res["queried_path"] = path
 
-    # Include Google OAuth token bundle summary
-    oauth_mgr = GoogleOAuthManager()
-    token_status = oauth_mgr.get_scope_status()
-    res["oauth_status"] = {
-        "has_token": token_status["has_token"],
-        "token_path": token_status["token_path"],
-        "expiry": token_status["expiry"],
-        "active_modules": [k for k, v in token_status["presets"].items() if v["authorized"]]
-    }
-    # Include Vaultr pipeline & free-space summary
-    res["vaultr_status"] = vaultr_pipeline.get_tier_status()
+    # Include Google OAuth token bundle summary if available
+    if GoogleOAuthManager is not None:
+        try:
+            oauth_mgr = GoogleOAuthManager()
+            token_status = oauth_mgr.get_scope_status()
+            res["oauth_status"] = {
+                "has_token": token_status["has_token"],
+                "token_path": token_status["token_path"],
+                "expiry": token_status["expiry"],
+                "active_modules": [k for k, v in token_status["presets"].items() if v["authorized"]]
+            }
+        except Exception:
+            res["oauth_status"] = {"has_token": False, "active_modules": []}
+    else:
+        res["oauth_status"] = {"has_token": False, "active_modules": []}
+
+    # Include Vaultr pipeline & free-space summary if available
+    if vaultr_pipeline is not None:
+        try:
+            res["vaultr_status"] = vaultr_pipeline.get_tier_status()
+        except Exception:
+            res["vaultr_status"] = {"pipeline_status": "standby"}
+    else:
+        res["vaultr_status"] = {"pipeline_status": "standby"}
     return res
 
 
@@ -670,7 +695,7 @@ def rclone_scan_import(req: RcloneScanRequest):
 
 
 # Global Vaultr Pipeline instance
-vaultr_pipeline = VaultrPipeline()
+vaultr_pipeline = VaultrPipeline() if VaultrPipeline is not None else None
 
 
 @app.get("/api/vaultr/status")

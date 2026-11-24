@@ -35,7 +35,10 @@ librscrape = LibrscrapePlugin()
 REGISTRY.register_acquisition_plugin("librget", librget)
 REGISTRY.register_scraper_plugin("librscrape", librscrape)
 
-STAGING_DIR = os.environ.get("KITTLIBR_STAGING_DIR", "/home/antigravity/kittlibr_host/staging_cache")
+STAGING_DIR = os.environ.get(
+    "KITTLIBR_STAGING_DIR",
+    str(SRC_PATH.parent / "staging_cache") if (SRC_PATH.parent / "staging_cache").exists() else str(Path(tempfile.gettempdir()) / "kittlibr_staging_cache")
+)
 ANYMD_URL = os.environ.get("ANYMD_DAEMON_URL", "http://127.0.0.1:3050")
 
 bridge = MetadataBridge(cache_staging_dir=STAGING_DIR)

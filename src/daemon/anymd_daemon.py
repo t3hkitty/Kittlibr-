@@ -58,7 +58,7 @@ app = FastAPI(
 )
 
 # Configuration defaults (overridable via ENV)
-default_staging = Path(tempfile.gettempdir()) / "kittlibr_staging_cache"
+default_staging = (project_root / "staging_cache") if (project_root / "staging_cache").exists() else (Path(tempfile.gettempdir()) / "kittlibr_staging_cache")
 STAGING_DIR = Path(os.environ.get("KITTLIBR_STAGING_DIR", str(default_staging)))
 SHARD_SIZE = 500
 RCLONE_RCD_URL = os.environ.get("RCLONE_RCD_URL", "http://127.0.0.1:5572")

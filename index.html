@@ -3152,7 +3152,7 @@
     let readerSessionStart = 0;
 
     // Reader View Modal & Navigation
-    function openReader(bookId) {
+    async function openReader(bookId) {
         const book = books.find(b => b.id === bookId);
         if (!book) return;
 
@@ -3193,6 +3193,51 @@
         const canonicalKey = book.canonicalId || book.md5 || (book.title ? computeBufferMD5(new TextEncoder().encode(book.title)) : String(book.id));
         const legacyPathKey = book.filePath || book.title;
         const savedProgress = getReadingProgress(canonicalKey, legacyPathKey);
+
+        // If book is a remote WebDAV URL without cached chapters, stream and unpack on demand
+        if ((!book.chapters || book.chapters.length === 0) && book.remoteUrl) {
+            const readerBody = document.getElementById('reader-body');
+            if (readerBody) {
+                readerBody.innerHTML = `<div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                    <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                    <div>Streaming and unpacking book from WebDAV cloud storage...</div>
+                    <div style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.8;">${escapeHtml(book.remoteUrl)}</div>
+                </div>`;
+            }
+            document.getElementById('reader-modal').style.display = 'flex';
+
+            const user = document.getElementById('webdav-user')?.value.trim();
+            const pass = document.getElementById('webdav-pass')?.value.trim();
+            const headers = {};
+            if (user && pass) headers['Authorization'] = 'Basic ' + btoa(user + ':' + pass);
+
+            try {
+                const resp = await fetch(book.remoteUrl, { headers });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+                const buf = await resp.arrayBuffer();
+                const ext = (book.format || '').toLowerCase();
+
+                if (ext === 'epub' || book.remoteUrl.toLowerCase().endsWith('.epub')) {
+                    const unpacked = await unpackEpubClient(buf, book.title + '.epub');
+                    book.chapters = unpacked.chapters;
+                    if (unpacked.title) book.title = unpacked.title;
+                    if (unpacked.author) book.author = unpacked.author;
+                    book.content = unpacked.chapters.length > 0 ? unpacked.chapters[0].html : '';
+                } else {
+                    const text = new TextDecoder('utf-8').decode(new Uint8Array(buf));
+                    book.chapters = parseMarkdownChapters(text, book.title);
+                    book.content = book.chapters.length > 0 ? book.chapters[0].html : text;
+                }
+                saveLocalBooks();
+                renderLibrary();
+            } catch (streamErr) {
+                console.warn('Failed to stream remote WebDAV file:', streamErr);
+                if (errBanner) {
+                    errBanner.style.display = 'block';
+                    errBanner.innerHTML = `<strong>⚠️ Remote Stream Error:</strong> Failed to fetch from WebDAV (${escapeHtml(streamErr.message)}). Check credentials or CORS.`;
+                }
+            }
+        }
 
         const hasChapters = Array.isArray(book.chapters) && book.chapters.length > 0;
         const select = document.getElementById('reader-chapter-select');

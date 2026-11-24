@@ -146,9 +146,7 @@ def start_anymd_daemon():
     daemon_script = SRC_DIR / "daemon" / "anymd_daemon.py"
     proc = subprocess.Popen(
         [sys.executable, str(daemon_script)],
-        cwd=str(BASE_DIR),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
+        cwd=str(BASE_DIR)
     )
     processes.append(proc)
     wait_for_endpoint(ANYMD_URL, f"AnyMD Daemon ({anymd_port})", timeout_sec=8)
@@ -161,9 +159,7 @@ def start_librmanage_engine():
     engine_script = SRC_DIR / "extensions" / "librmanage" / "engine" / "librmanage_service.py"
     proc = subprocess.Popen(
         [sys.executable, str(engine_script)],
-        cwd=str(engine_script.parent),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
+        cwd=str(engine_script.parent)
     )
     processes.append(proc)
     wait_for_endpoint(f"{LIBRMANAGE_URL}/api/status", "librmanage Engine (:5820)", timeout_sec=8)

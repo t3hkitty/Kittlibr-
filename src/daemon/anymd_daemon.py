@@ -51,10 +51,21 @@ from src.vaultr.pipeline import (
     SingleFlightLock
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="AnyMD Universal Loopback Daemon",
     version="3.9.0-unified",
     description="Cross-platform Markdown/YAML SQL replacement, sharded indexer (500/shard), Zettelkasten serial generator, and query translation"
+)
+
+# Enable CORS for browser access from file://, localhost:8080, and loopback clients
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Configuration defaults (overridable via ENV)
